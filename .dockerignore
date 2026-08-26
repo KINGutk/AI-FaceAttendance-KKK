@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.git/
+.gitignore
+.env
+.env.example
+*.npz
+*.pt
+*.onnx
+*.md
+face_attendance_db.sql
+tidb_schema.sql
+docker-compose.yml
+.dockerignore
+.insightface/

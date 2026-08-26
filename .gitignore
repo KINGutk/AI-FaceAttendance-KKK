@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# Environment variables
+.env
+
+# ML Models (auto-downloaded at startup)
+*.pt
+*.onnx
+*.pth
+
+# Face cache (auto-rebuilt from database)
+*.npz
+
+# InsightFace model cache
+.insightface/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Old SQL dumps with test data
+face_attendance_db.sql
+tidb_schema.sql
+
+# Logs
+*.log
