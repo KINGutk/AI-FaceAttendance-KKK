@@ -1652,10 +1652,11 @@ def professor_leaves():
 
                     current_date = start_date
                     while current_date <= end_date:
+                        day_name = current_date.strftime('%A')
                         if subject_name:
-                            cursor.execute("SELECT id FROM classes WHERE subject_name = %s AND semester = %s", (subject_name, semester))
+                            cursor.execute("SELECT id FROM classes WHERE subject_name = %s AND semester = %s AND day_of_week = %s", (subject_name, semester, day_name))
                         else:
-                            cursor.execute("SELECT id FROM classes WHERE semester = %s", (semester,))
+                            cursor.execute("SELECT id FROM classes WHERE semester = %s AND day_of_week = %s", (semester, day_name))
 
                         target_classes = cursor.fetchall()
 
