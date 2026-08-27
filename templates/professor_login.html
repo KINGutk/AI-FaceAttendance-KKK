@@ -22,7 +22,8 @@
           <button type="submit" class="btn btn-primary rounded-pill w-100 py-2 fw-bold shadow-sm mb-3">Login</button>
         </form>
 
-        <a href="{{ url_for('professor_signup') }}" class="d-block mb-4 text-success fw-bold text-decoration-none">Register New Account</a>
+        <a href="{{ url_for('professor_signup') }}" class="d-block mb-2 text-success fw-bold text-decoration-none">Register New Account</a>
+        <p class="mb-4"><a href="{{ url_for('forgot_password') }}" class="text-secondary text-decoration-none" style="font-size: 0.9rem;"><i class="fas fa-key me-1"></i> Forgot Password?</a></p>
 
         <div class="d-flex justify-content-center gap-3">
           <a href="{{ url_for('login') }}" class="text-decoration-none text-muted fw-semibold">Admin</a>

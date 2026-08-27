@@ -44,7 +44,8 @@
                     <a href="{{ url_for('view_attendance') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-clipboard-list me-2"></i> All Attendance</a>
                 {% elif session.get('role') == 'professor' %}
                     <a href="{{ url_for('professor_dashboard') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-tachometer-alt me-2"></i> Dashboard</a>
-                    <a href="{{ url_for('professor_attendance') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-camera me-2"></i> Live Attendance</a>
+                    <a href="{{ url_for('live_attendance') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-camera me-2 text-success"></i> Take Live Attendance</a>
+                    <a href="{{ url_for('professor_attendance') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-clipboard-list me-2"></i> View Attendance</a>
                     <a href="{{ url_for('professor_manual_attendance') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-edit me-2"></i> Manual Entry</a>
                     <a href="{{ url_for('professor_leaves') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-envelope-open-text me-2"></i> Leave Requests</a>
                     <a href="{{ url_for('professor_announcements') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-bullhorn me-2 text-warning"></i> Announcements</a>

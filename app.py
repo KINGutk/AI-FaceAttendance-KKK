@@ -15,6 +15,7 @@ import time
 import atexit
 from flask_mail import Mail, Message
 from apscheduler.schedulers.background import BackgroundScheduler
+from itsdangerous import URLSafeTimedSerializer
 
 def get_pkt_now():
     """Force Pakistan Standard Time (UTC+5) everywhere."""
@@ -59,6 +60,9 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', '')
 if not app.secret_key:
     raise RuntimeError('FLASK_SECRET_KEY not set! Create a .env file in the project root.')
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB for 6x face images
+
+# Password Reset Serializer
+reset_serializer = URLSafeTimedSerializer(app.secret_key)
 
 # ==================================================
 # 🧠 AI MODEL LOADING (YOLOv8 + ArcFace)
@@ -447,6 +451,22 @@ Khushal Degree College
     except Exception as e:
         print(f"❌ Failed to send leave status email to {student_email}: {e}")
         return False
+
+def send_reset_password_email_in_background(email, reset_url, role):
+    """Send password reset email in a background thread."""
+    def email_worker():
+        try:
+            with app.app_context():
+                msg = Message("Password Reset Request - FaceAuth", recipients=[email])
+                msg.body = f"Hello,\n\nYou requested a password reset for your {role.capitalize()} account.\n\nPlease click the link below to reset your password. This link will expire in 15 minutes:\n\n{reset_url}\n\nIf you did not request this, please ignore this email.\n\n---\nSmart Face Attendance System"
+                mail.send(msg)
+                print(f"📧 Password reset email sent to {email}")
+        except Exception as e:
+            print(f"❌ Failed to send reset email to {email}: {e}")
+            
+    thread = threading.Thread(target=email_worker)
+    thread.daemon = True
+    thread.start()
 
 
 def send_announcement_emails_in_background(recipients, subject, message_body, professor_name):
@@ -901,6 +921,72 @@ def student_signup():
 # ==================================================
 # 🏠 MAIN ROUTES
 # ==================================================
+
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        role = request.form.get('role')
+        
+        db = get_db_connection()
+        if db:
+            cursor = db.cursor(dictionary=True)
+            table = 'students' if role == 'student' else 'professors'
+            
+            cursor.execute(f"SELECT id FROM {table} WHERE email = %s", (email,))
+            user = cursor.fetchone()
+            
+            cursor.close()
+            db.close()
+            
+            if user:
+                # Generate token
+                token = reset_serializer.dumps({'email': email, 'role': role}, salt='password-reset-salt')
+                reset_url = url_for('reset_password', token=token, _external=True)
+                send_reset_password_email_in_background(email, reset_url, role)
+                
+        # Always show success message to prevent email enumeration
+        flash('If that email exists in our system, a password reset link has been sent.', 'info')
+        return redirect(url_for('forgot_password'))
+        
+    return render_template('forgot_password.html')
+
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        data = reset_serializer.loads(token, salt='password-reset-salt', max_age=900) # 15 min expiry
+        email = data.get('email')
+        role = data.get('role')
+    except Exception:
+        flash('The password reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('login'))
+        
+    if request.method == 'POST':
+        new_password = request.form.get('password')
+        if not new_password:
+            flash('Password cannot be empty.', 'danger')
+            return redirect(request.url)
+            
+        db = get_db_connection()
+        if db:
+            cursor = db.cursor()
+            table = 'students' if role == 'student' else 'professors'
+            hashed_pw = generate_password_hash(new_password)
+            
+            cursor.execute(f"UPDATE {table} SET password = %s WHERE email = %s", (hashed_pw, email))
+            db.commit()
+            
+            cursor.close()
+            db.close()
+            
+            flash('Your password has been reset successfully! You can now log in.', 'success')
+            return redirect(url_for('student_login') if role == 'student' else url_for('professor_login'))
+            
+        flash('Database error occurred.', 'danger')
+        
+    return render_template('reset_password.html')
+
 
 @app.route('/')
 def index():
