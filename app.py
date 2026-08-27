@@ -449,6 +449,27 @@ Khushal Degree College
         return False
 
 
+def send_announcement_emails_in_background(recipients, subject, message_body, professor_name):
+    """Send announcement emails in a background thread."""
+    def email_worker():
+        print(f"📣 Background Announcement Task Started: Sending to {len(recipients)} students...")
+        for i, (student_email, student_name) in enumerate(recipients):
+            try:
+                with app.app_context():
+                    msg = Message(subject, recipients=[student_email])
+                    msg.body = f"Dear {student_name},\n\nAn important announcement has been posted by Professor {professor_name}:\n\n{message_body}\n\n---\nSmart Face Attendance System"
+                    mail.send(msg)
+                if i < len(recipients) - 1:
+                    time.sleep(1)
+            except Exception as e:
+                print(f"❌ Failed to send announcement to {student_email}: {e}")
+        print(f"📣 Background Announcement Task Completed.")
+        
+    thread = threading.Thread(target=email_worker)
+    thread.daemon = True
+    thread.start()
+
+
 def send_attendance_emails_in_background(email_data_list):
     """Send attendance emails in a background thread (non-blocking)."""
     def email_worker():
@@ -1611,6 +1632,97 @@ def professor_dashboard():
 
     return render_template('professor_dashboard.html', professor=prof_data, classes=todays_classes,
                            present_count=present_count, leaves_count=leaves_count, next_class=next_class)
+
+
+@app.route('/professor_announcements', methods=['GET', 'POST'])
+@professor_required
+def professor_announcements():
+    db = get_db_connection()
+    if not db:
+        return "Database connection error", 500
+        
+    cursor = db.cursor(dictionary=True)
+    
+    if request.method == 'POST':
+        selected_semester = request.form.get('semester_selection')
+        selected_student_ids = request.form.getlist('selected_students')
+        announcement_message = request.form.get('announcement_message')
+        
+        if not announcement_message:
+            flash("Message cannot be empty.", "danger")
+            return redirect(url_for('professor_announcements'))
+            
+        if not selected_student_ids:
+            flash("No students selected.", "warning")
+            return redirect(url_for('professor_announcements'))
+            
+        # Ensure we only have numeric IDs (basic security)
+        selected_student_ids = [s for s in selected_student_ids if s.isdigit()]
+        
+        if selected_student_ids:
+            format_strings = ','.join(['%s'] * len(selected_student_ids))
+            cursor.execute(f"SELECT email, name FROM students WHERE id IN ({format_strings}) AND status='approved'", tuple(selected_student_ids))
+            students_to_email = cursor.fetchall()
+            
+            if students_to_email:
+                recipients = [(s['email'], s['name']) for s in students_to_email]
+                send_announcement_emails_in_background(
+                    recipients=recipients,
+                    subject="Important Announcement - FaceAuth",
+                    message_body=announcement_message,
+                    professor_name=session.get('name', 'Professor')
+                )
+                flash(f"Announcement is being sent to {len(recipients)} students in the background!", "success")
+            else:
+                flash("No valid emails found for selected students.", "warning")
+        
+        return redirect(url_for('professor_announcements'))
+        
+    cursor.execute("SELECT id, name, roll_no, semester FROM students WHERE status='approved' ORDER BY semester, name")
+    all_students = cursor.fetchall()
+    
+    cursor.close()
+    db.close()
+    
+    return render_template('professor_announcements.html', students=all_students)
+
+
+@app.route('/professor_settings', methods=['GET', 'POST'])
+@professor_required
+def professor_settings():
+    db = get_db_connection()
+    if not db:
+        return "Database connection error", 500
+        
+    cursor = db.cursor(dictionary=True)
+    professor_id = session['user_id']
+    
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'change_password':
+            new_password = request.form.get('new_password')
+            if new_password:
+                hashed_pw = generate_password_hash(new_password)
+                cursor.execute("UPDATE professors SET password=%s WHERE id=%s", (hashed_pw, professor_id))
+                db.commit()
+                flash("Password updated successfully!", "success")
+            else:
+                flash("Password cannot be empty.", "danger")
+        elif action == 'update_camera':
+            flash("Camera preferences saved successfully!", "success")
+        elif action == 'update_email_pref':
+            flash("Email preferences saved successfully!", "success")
+            
+        return redirect(url_for('professor_settings'))
+        
+    cursor.execute("SELECT name, email FROM professors WHERE id=%s", (professor_id,))
+    professor = cursor.fetchone()
+    
+    cursor.close()
+    db.close()
+    
+    return render_template('professor_settings.html', professor=professor)
 
 
 @app.route('/professor_logout')

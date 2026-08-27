@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Settings - FaceAuth{% endblock %}
+{% block page_title %}Professor Settings{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        
+        <!-- Profile Info (Read Only) -->
+        <div class="card shadow-sm border-0 mb-4 bg-primary text-white">
+            <div class="card-body d-flex align-items-center">
+                <img src="https://ui-avatars.com/api/?name={{ professor.name | urlencode }}&background=ffffff&color=0D8ABC&size=64" class="rounded-circle me-3 border border-2 border-white shadow-sm" alt="Profile">
+                <div>
+                    <h4 class="mb-0 fw-bold">{{ professor.name }}</h4>
+                    <p class="mb-0 text-white-50"><i class="fas fa-envelope me-1"></i> {{ professor.email }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security: Change Password -->
+        <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden">
+            <div class="card-header bg-white border-bottom border-light py-3">
+                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-lock text-primary me-2"></i> Change Password</h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="{{ url_for('professor_settings') }}" method="POST">
+                    <input type="hidden" name="action" value="change_password">
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-semibold">New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="fas fa-key text-muted"></i></span>
+                            <input type="password" class="form-control border-start-0" name="new_password" placeholder="Enter new password" required minlength="6">
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary fw-bold px-4 rounded-pill shadow-sm">Update Password</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Camera Configuration -->
+        <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden">
+            <div class="card-header bg-white border-bottom border-light py-3">
+                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-video text-info me-2"></i> Camera Configuration</h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="{{ url_for('professor_settings') }}" method="POST">
+                    <input type="hidden" name="action" value="update_camera">
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-semibold">Default Camera Device</label>
+                        <select class="form-select" name="camera_index">
+                            <option value="0">Default Built-in Camera (Index 0)</option>
+                            <option value="1">External USB Camera (Index 1)</option>
+                            <option value="2">Virtual Camera / OBS (Index 2)</option>
+                        </select>
+                        <div class="form-text mt-2"><i class="fas fa-info-circle"></i> If your face scanning window is black or crashing, try selecting a different camera index.</div>
+                    </div>
+                    <button type="submit" class="btn btn-info text-white fw-bold px-4 rounded-pill shadow-sm">Save Camera Settings</button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Custom Email Messages -->
+        <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden">
+            <div class="card-header bg-white border-bottom border-light py-3">
+                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-comment-dots text-success me-2"></i> Custom Email Messages</h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="{{ url_for('professor_settings') }}" method="POST">
+                    <input type="hidden" name="action" value="update_email_templates">
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-semibold">Leave Accepted Message</label>
+                        <textarea class="form-control" name="msg_leave_accept" rows="2" placeholder="Your leave request has been approved."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-semibold">Leave Rejected Message</label>
+                        <textarea class="form-control" name="msg_leave_reject" rows="2" placeholder="Your leave request has been rejected. Please meet the professor."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-semibold">Marked Absent Alert</label>
+                        <textarea class="form-control" name="msg_absent" rows="2" placeholder="You have been marked ABSENT for today's class."></textarea>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label text-muted fw-semibold">Marked Present Confirmation</label>
+                        <textarea class="form-control" name="msg_present" rows="2" placeholder="You have been marked PRESENT for today's class."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm">Save Email Messages</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Notification Preferences -->
+        <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden">
+            <div class="card-header bg-white border-bottom border-light py-3">
+                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-envelope text-warning me-2"></i> Email Preferences</h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="{{ url_for('professor_settings') }}" method="POST">
+                    <input type="hidden" name="action" value="update_email_pref">
+                    <div class="form-check form-switch mb-4 fs-5">
+                        <input class="form-check-input" type="checkbox" id="emailAlerts" name="email_alerts" checked>
+                        <label class="form-check-label text-muted fw-semibold ms-2" for="emailAlerts">Send Email Alerts to Absent Students</label>
+                    </div>
+                    <button type="submit" class="btn btn-warning text-dark fw-bold px-4 rounded-pill shadow-sm">Save Preferences</button>
+                </form>
+            </div>
+        </div>
+        
+    </div>
+</div>
+{% endblock %}

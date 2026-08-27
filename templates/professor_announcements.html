@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Announcements - FaceAuth{% endblock %}
+{% block page_title %}Announcements{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card shadow-sm border-0 rounded-4 overflow-hidden mb-5">
+            <div class="card-header bg-white border-bottom border-light py-3">
+                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-bullhorn text-warning me-2"></i> Send New Announcement</h5>
+            </div>
+            <div class="card-body p-4">
+                <form action="{{ url_for('professor_announcements') }}" method="POST" id="announcementForm">
+                    
+                    <!-- 1. Semester Selection -->
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-semibold">1. Select Semester</label>
+                        <select class="form-select form-select-lg" id="semesterSelect" name="semester_selection">
+                            <option value="all">All Semesters</option>
+                            <option value="1st Semester">1st Semester</option>
+                            <option value="2nd Semester">2nd Semester</option>
+                            <option value="3rd Semester">3rd Semester</option>
+                            <option value="4th Semester">4th Semester</option>
+                            <option value="5th Semester">5th Semester</option>
+                            <option value="6th Semester">6th Semester</option>
+                            <option value="7th Semester">7th Semester</option>
+                            <option value="8th Semester">8th Semester</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 2. Student Selection -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label text-muted fw-semibold mb-0">2. Select Students</label>
+                            <div>
+                                <button type="button" class="btn btn-sm btn-outline-primary fw-bold px-3" id="selectAllBtn">Select All</button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary fw-bold px-3" id="deselectAllBtn">Deselect All</button>
+                            </div>
+                        </div>
+                        
+                        <div class="border rounded-3 p-3 bg-light shadow-inner" style="max-height: 250px; overflow-y: auto;" id="studentsContainer">
+                            <!-- Checkboxes populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- 3. Message Box -->
+                    <div class="mb-4">
+                        <label class="form-label text-muted fw-semibold">3. Announcement Message</label>
+                        <textarea class="form-control border-warning shadow-sm" name="announcement_message" rows="5" placeholder="Type your important announcement here... It will be emailed instantly to all selected students." required></textarea>
+                    </div>
+                    
+                    <div class="text-end">
+                        <button type="submit" class="btn btn-warning fw-bold px-5 py-2 rounded-pill shadow" id="sendBtn">
+                            <i class="fas fa-paper-plane me-2"></i> Send Announcement
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Data injected from Flask
+    const studentsData = {{ students | tojson | safe }};
+    
+    const semesterSelect = document.getElementById('semesterSelect');
+    const studentsContainer = document.getElementById('studentsContainer');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const deselectAllBtn = document.getElementById('deselectAllBtn');
+    
+    // Function to render students based on selected semester
+    function renderStudents(semester) {
+        studentsContainer.innerHTML = '';
+        
+        let filteredStudents = studentsData;
+        if (semester !== 'all') {
+            filteredStudents = studentsData.filter(s => s.semester == semester);
+        }
+        
+        if (filteredStudents.length === 0) {
+            studentsContainer.innerHTML = '<div class="text-muted text-center py-4"><i class="fas fa-users-slash fs-1 mb-2 opacity-50"></i><br>No students found in this semester.</div>';
+            return;
+        }
+        
+        filteredStudents.forEach(student => {
+            const div = document.createElement('div');
+            div.className = 'form-check mb-2 pb-2 border-bottom border-light';
+            div.innerHTML = `
+                <input class="form-check-input student-checkbox shadow-sm" type="checkbox" name="selected_students" value="${student.id}" id="student_${student.id}" checked style="cursor: pointer; transform: scale(1.2); margin-top: 0.3rem;">
+                <label class="form-check-label w-100 ps-2" for="student_${student.id}" style="cursor: pointer;">
+                    <strong>${student.name}</strong> 
+                    <span class="text-muted float-end badge bg-secondary bg-opacity-10 text-secondary border"><i class="fas fa-id-card me-1"></i> Roll: ${student.roll_no} &nbsp;|&nbsp; Sem: ${student.semester}</span>
+                </label>
+            `;
+            studentsContainer.appendChild(div);
+        });
+    }
+    
+    // Listeners
+    semesterSelect.addEventListener('change', (e) => renderStudents(e.target.value));
+    
+    selectAllBtn.addEventListener('click', () => {
+        document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = true);
+    });
+    
+    deselectAllBtn.addEventListener('click', () => {
+        document.querySelectorAll('.student-checkbox').forEach(cb => cb.checked = false);
+    });
+    
+    // Initial render
+    renderStudents('all');
+</script>
+{% endblock %}

@@ -31,8 +31,9 @@
         
         <!-- Sidebar -->
         <div class="sidebar-wrapper bg-dark text-white shadow" id="sidebar-wrapper">
-            <div class="sidebar-heading text-center py-4 fs-4 fw-bold border-bottom border-secondary">
-                <i class="fa-solid fa-face-viewfinder me-2 text-primary"></i> <span class="d-none d-md-inline">FaceAuth</span>
+            <div class="sidebar-heading text-center py-3 fs-5 fw-bold border-bottom border-secondary d-flex flex-column align-items-center justify-content-center">
+                <img src="{{ url_for('static', filename='images/logo.jpg') }}" alt="FaceAuth Logo" class="img-fluid rounded-circle mb-2 shadow-lg border border-info border-2" style="max-width: 75px; width: 100%; height: auto;">
+                <span class="text-white tracking-wide fs-5">FaceAuth</span>
             </div>
             <div class="list-group list-group-flush my-3">
                 {% if session.get('role') == 'admin' %}
@@ -46,6 +47,8 @@
                     <a href="{{ url_for('professor_attendance') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-camera me-2"></i> Live Attendance</a>
                     <a href="{{ url_for('professor_manual_attendance') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-edit me-2"></i> Manual Entry</a>
                     <a href="{{ url_for('professor_leaves') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-envelope-open-text me-2"></i> Leave Requests</a>
+                    <a href="{{ url_for('professor_announcements') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-bullhorn me-2 text-warning"></i> Announcements</a>
+                    <a href="{{ url_for('professor_settings') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-ellipsis-h me-2"></i> Settings</a>
                 {% elif session.get('role') == 'student' %}
                     <a href="{{ url_for('student_dashboard') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-tachometer-alt me-2"></i> Dashboard</a>
                     <a href="{{ url_for('apply_leave') }}" class="list-group-item list-group-item-action bg-transparent text-white fw-bold"><i class="fas fa-file-signature me-2"></i> Apply for Leave</a>
@@ -118,6 +121,19 @@
                 {% endif %}
                 
             </div>
+            
+            <!-- Footer -->
+            <footer class="text-center py-4 mt-5 border-top w-100" style="background-color: var(--bs-tertiary-bg);">
+                <div class="container">
+                    <p class="mb-2 text-secondary fw-bold">Smart Face Attendance System</p>
+                    <div class="d-flex justify-content-center gap-4 mb-3">
+                        <a href="https://github.com/KINGutk/AI-FaceAttendance-KKK" target="_blank" class="text-secondary text-decoration-none fs-4 hover-opacity" title="GitHub Repository"><i class="fab fa-github"></i></a>
+                        <a href="https://www.linkedin.com/in/abdul-kabeer-180033382" target="_blank" class="text-secondary text-decoration-none fs-4 hover-opacity" title="LinkedIn Profile"><i class="fab fa-linkedin"></i></a>
+                    </div>
+                    <p class="mb-0 text-secondary small">Designed & Developed by <strong>KKK Degree College (Akora Khattak)</strong> &copy; <script>document.write(new Date().getFullYear())</script></p>
+                </div>
+            </footer>
+            
         </div>
         <!-- /#page-content-wrapper -->
     </div>
