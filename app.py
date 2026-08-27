@@ -1189,6 +1189,12 @@ def apply_leave():
             start_date = request.form['start_date']
             end_date = request.form['end_date']
 
+            today_str = datetime.now().strftime('%Y-%m-%d')
+            if start_date < today_str:
+                return render_template('apply_leave.html', student=student, classes=classes, message="⚠️ Error: Start date cannot be in the past.")
+            if end_date < start_date:
+                return render_template('apply_leave.html', student=student, classes=classes, message="⚠️ Error: End date cannot be before start date.")
+
             if subject_name:
                 cursor.execute(
                     "INSERT INTO leaves (student_id, subject_name, application_purpose, application_text, start_date, end_date, status) VALUES (%s, %s, %s, %s, %s, %s, 'Pending')",

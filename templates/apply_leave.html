@@ -64,4 +64,20 @@
     </div>
   </div>
 </div>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const today = new Date().toISOString().split('T')[0];
+    const startDateInput = document.getElementById('startDate');
+    const endDateInput = document.getElementById('endDate');
+    
+    if(startDateInput && endDateInput) {
+      startDateInput.setAttribute('min', today);
+      endDateInput.setAttribute('min', today);
+      
+      startDateInput.addEventListener('change', function() {
+        endDateInput.setAttribute('min', this.value);
+      });
+    }
+  });
+</script>
 {% endblock %}
