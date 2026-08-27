@@ -39,12 +39,15 @@
 </div>
 
 <!-- ACTION BUTTONS -->
-<div class="d-flex justify-content-center gap-3 mb-4">
+<div class="d-flex justify-content-center gap-3 mb-4 flex-wrap">
   <button class="btn btn-outline-primary rounded-pill fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#fullRecordCollapse" aria-expanded="false" aria-controls="fullRecordCollapse">
     📊 Show Full Record
   </button>
   <button class="btn btn-outline-secondary rounded-pill fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#leaveStatusCollapse" aria-expanded="false" aria-controls="leaveStatusCollapse">
     📄 Show Leaves Status
+  </button>
+  <button class="btn btn-outline-info rounded-pill fw-bold px-4 py-2" type="button" data-bs-toggle="collapse" data-bs-target="#timetableCollapse" aria-expanded="false" aria-controls="timetableCollapse">
+    🗓️ Show Timetable
   </button>
 </div>
 
@@ -56,7 +59,7 @@
   <div class="row g-4">
     {% for sub in attendance_data %}
     <div class="col-md-4">
-      <div class="card shadow-sm border-0 rounded-4 h-100">
+      <div class="card shadow-sm border-0 rounded-4 h-100 border-start border-4 border-success">
         <div class="card-body text-center">
           <h5 class="fw-bold mb-2">{{ sub.subject_name }}</h5>
           <p class="text-muted small mb-3">{{ sub.presents }} / {{ sub.total_classes }} Classes</p>
@@ -76,62 +79,163 @@
   </div>
 </div>
 
-<!-- LEAVE STATUS COLLAPSE -->
-<div class="collapse mb-5" id="leaveStatusCollapse" data-bs-parent="#dashboardAccordion">
-  <div class="row g-4">
-    <div class="col-12">
-      {% if grouped_leaves %}
-        {% for date_key, requests in grouped_leaves.items() %}
-        <div class="card shadow-sm border-0 rounded-4 mb-4">
-          <div class="card-header bg-transparent border-bottom-0 pt-4 pb-0">
-            <h5 class="fw-bold text-muted">{{ date_key }}</h5>
-          </div>
-          <div class="card-body">
-            <div class="table-responsive">
-              <table class="table table-hover table-striped align-middle mb-0">
-                <thead class="table-light">
-                  <tr>
-                    <th>Subject</th>
-                    <th>Reason</th>
-                    <th>Dates</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for l in requests %}
-                  <tr>
-                    <td class="fw-bold">{{ l.subject_name or 'All' }}</td>
-                    <td>{{ l.application_purpose }}</td>
-                    <td><span class="badge bg-secondary rounded-pill">{{ l.start_date }} to {{ l.end_date }}</span></td>
-                    <td>
-                      {% if l.status == 'Approved' %}
-                        <span class="badge bg-success rounded-pill px-3 py-2">Approved</span>
-                      {% elif l.status == 'Rejected' %}
-                        <span class="badge bg-danger rounded-pill px-3 py-2">Rejected</span>
-                      {% else %}
-                        <span class="badge bg-warning text-dark rounded-pill px-3 py-2">Pending</span>
-                      {% endif %}
-                    </td>
-                  </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+<!-- TIMETABLE COLLAPSE -->
+<div class="collapse mb-5" id="timetableCollapse" data-bs-parent="#dashboardAccordion">
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-body p-4">
+      <h4 class="fw-bold text-info mb-4">🗓️ My Class Schedule</h4>
+      
+      <!-- Day Filter -->
+      <div class="row mb-4 bg-light p-3 rounded-3">
+        <div class="col-md-6 mx-auto">
+          <label class="form-label fw-bold small text-muted">Filter by Day</label>
+          <select class="form-select rounded-pill shadow-sm" id="dayFilter">
+            <option value="all">All Days</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Class List -->
+      <div class="row g-3" id="timetableList">
+        {% if timetable %}
+          {% for t in timetable %}
+          <div class="col-md-6 col-lg-4 timetable-card" data-day="{{ t.day_of_week }}">
+            <div class="card h-100 border rounded-3 shadow-sm hover-shadow" style="transition: all 0.2s;">
+              <div class="card-body">
+                <div class="d-flex align-items-center mb-3">
+                  <div class="rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center text-info fw-bold me-3" style="width: 45px; height: 45px; font-size: 1.2rem;">
+                    {{ t.subject_name[:1]|upper }}
+                  </div>
+                  <div>
+                    <h6 class="fw-bold mb-0">{{ t.subject_name }}</h6>
+                    <span class="badge bg-secondary rounded-pill mt-1">{{ t.day_of_week }}</span>
+                  </div>
+                </div>
+                <div class="d-flex flex-column gap-2 text-muted small">
+                  <div><i class="fas fa-clock me-2 text-primary"></i>{{ t.start_time }} - {{ t.end_time }}</div>
+                  <div><i class="fas fa-chalkboard-teacher me-2 text-success"></i>{{ t.professor_name }}</div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        {% endfor %}
-      {% else %}
-        <div class="card shadow-sm border-0 rounded-4">
-          <div class="card-body text-center p-4">
-            <p class="text-muted mb-0">No leave history.</p>
+          {% endfor %}
+        {% else %}
+          <div class="col-12 text-center text-muted py-4 fst-italic">
+            <i class="fas fa-calendar-times fa-3x mb-3 text-muted opacity-50"></i>
+            <p>No classes scheduled for your semester yet.</p>
           </div>
+        {% endif %}
+        <div class="col-12 text-center text-muted py-4 fst-italic" id="noClassesMsg" style="display: none;">
+          No classes scheduled for this day.
         </div>
-      {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LEAVE STATUS COLLAPSE -->
+<div class="collapse mb-5" id="leaveStatusCollapse" data-bs-parent="#dashboardAccordion">
+  <div class="card shadow-sm border-0 rounded-4">
+    <div class="card-body p-4">
+      <h4 class="fw-bold text-secondary mb-4">📄 My Leave Applications</h4>
+      
+      <!-- Status Filter -->
+      <div class="row mb-4 bg-light p-3 rounded-3">
+        <div class="col-md-6 mx-auto">
+          <label class="form-label fw-bold small text-muted">Filter by Status</label>
+          <select class="form-select rounded-pill shadow-sm" id="leaveStatusFilter">
+            <option value="all">All Applications</option>
+            <option value="Pending">⏳ Pending</option>
+            <option value="Approved">🟢 Approved</option>
+            <option value="Rejected">🔴 Rejected</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row g-4" id="leaveList">
+        {% if leaves %}
+          {% for l in leaves %}
+          <div class="col-md-6 leave-card" data-status="{{ l.status }}">
+            <div class="card h-100 border rounded-3 shadow-sm hover-shadow {% if l.status == 'Approved' %}border-start border-4 border-success{% elif l.status == 'Rejected' %}border-start border-4 border-danger{% else %}border-start border-4 border-warning{% endif %}" style="transition: all 0.2s;">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                  <div>
+                    <h5 class="fw-bold mb-1">{{ l.subject_name or 'All Subjects (Legacy)' }}</h5>
+                    <span class="text-muted small"><i class="fas fa-chalkboard-teacher me-1"></i>{{ l.professor_name or 'Unknown Professor' }}</span>
+                  </div>
+                  <div>
+                    {% if l.status == 'Approved' %}
+                      <span class="badge bg-success rounded-pill px-3 py-2"><i class="fas fa-check-circle me-1"></i> Approved</span>
+                    {% elif l.status == 'Rejected' %}
+                      <span class="badge bg-danger rounded-pill px-3 py-2"><i class="fas fa-times-circle me-1"></i> Rejected</span>
+                    {% else %}
+                      <span class="badge bg-warning text-dark rounded-pill px-3 py-2"><i class="fas fa-hourglass-half me-1"></i> Pending</span>
+                    {% endif %}
+                  </div>
+                </div>
+                
+                <div class="mb-3">
+                  <span class="badge bg-light text-dark border px-3 py-2 rounded-pill shadow-sm">📅 {{ l.start_date }} ➝ {{ l.end_date }}</span>
+                </div>
+                <div class="text-muted small text-truncate mb-2" style="max-height: 40px;">
+                  <strong>📝 Reason:</strong> {{ l.application_purpose }}
+                </div>
+                
+                <button class="btn btn-outline-secondary rounded-pill btn-sm fw-bold px-3 mt-2" 
+                        onclick="openLeaveModal(`{{ l.application_purpose }}`, `{{ l.application_text }}`)">
+                    📄 Read More
+                </button>
+              </div>
+              <div class="card-footer bg-transparent text-muted small py-2">
+                Applied on: {{ l.created_at.strftime('%A, %B %d, %Y') if l.created_at else 'Unknown' }}
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="col-12">
+            <div class="text-center p-5 text-muted fst-italic">
+              <i class="fas fa-folder-open fa-3x mb-3 text-muted opacity-50"></i>
+              <p class="mb-0">You have no leave history.</p>
+            </div>
+          </div>
+        {% endif %}
+        <div class="col-12 text-center text-muted py-4 fst-italic" id="noLeavesMsg" style="display: none;">
+          No leave applications match the selected filter.
+        </div>
+      </div>
     </div>
   </div>
 </div>
 </div>
 <!-- END DASHBOARD ACCORDION WRAPPER -->
+
+<!-- Leave Application Modal -->
+<div class="modal fade" id="leaveApplicationModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-bottom-0 pb-0">
+        <h5 class="modal-title fw-bold text-primary">📝 Leave Application Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-1">Purpose:</p>
+        <h6 id="studentModalPurpose" class="fw-bold mb-3"></h6>
+        <div id="studentModalText" class="p-3 bg-light rounded-3 border-start border-4 border-primary" style="white-space: pre-wrap; font-family: inherit;"></div>
+      </div>
+      <div class="modal-footer border-top-0 pt-0">
+        <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 {% endblock %}
 
@@ -179,5 +283,61 @@
       }
     });
   });
+
+  // Timetable Filtering Logic
+  const dayFilter = document.getElementById('dayFilter');
+  if (dayFilter) {
+    dayFilter.addEventListener('change', function() {
+      const selectedDay = this.value;
+      const cards = document.querySelectorAll('.timetable-card');
+      let visibleCount = 0;
+      
+      cards.forEach(card => {
+        if (selectedDay === 'all' || card.dataset.day === selectedDay) {
+          card.style.display = '';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      
+      const noMsg = document.getElementById('noClassesMsg');
+      if (noMsg) {
+        noMsg.style.display = (visibleCount === 0 && cards.length > 0) ? '' : 'none';
+      }
+    });
+  }
+
+  // Leave Filtering Logic
+  const leaveStatusFilter = document.getElementById('leaveStatusFilter');
+  if (leaveStatusFilter) {
+    leaveStatusFilter.addEventListener('change', function() {
+      const selectedStatus = this.value;
+      const cards = document.querySelectorAll('.leave-card');
+      let visibleCount = 0;
+      
+      cards.forEach(card => {
+        if (selectedStatus === 'all' || card.dataset.status === selectedStatus) {
+          card.style.display = '';
+          visibleCount++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      
+      const noLeavesMsg = document.getElementById('noLeavesMsg');
+      if (noLeavesMsg) {
+        noLeavesMsg.style.display = (visibleCount === 0 && cards.length > 0) ? '' : 'none';
+      }
+    });
+  }
+</script>
+<script>
+  function openLeaveModal(purpose, text) {
+      document.getElementById('studentModalPurpose').textContent = purpose;
+      document.getElementById('studentModalText').textContent = text;
+      var myModal = new bootstrap.Modal(document.getElementById('leaveApplicationModal'));
+      myModal.show();
+  }
 </script>
 {% endblock %}

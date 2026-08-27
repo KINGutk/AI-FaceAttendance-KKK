@@ -4,7 +4,7 @@
 
 {% block content %}
 <div class="row g-4 mb-4">
-  <div class="col-md-5">
+  <div class="col-lg-5">
     <div class="card shadow-sm border-0 rounded-4 h-100">
       <div class="card-body p-4">
         <h5 class="card-title fw-bold mb-4">➕ Add New Class</h5>
@@ -81,47 +81,132 @@
     </div>
   </div>
 
-  <div class="col-md-7">
+  <div class="col-lg-7">
     <div class="card shadow-sm border-0 rounded-4 h-100">
       <div class="card-body p-4">
-        <h5 class="card-title fw-bold mb-4">🏫 Scheduled Classes</h5>
         
-        <div class="table-responsive">
-          <table class="table table-hover table-striped align-middle">
-            <thead class="table-light">
-              <tr>
-                <th class="text-uppercase text-secondary" style="font-size: 0.85rem;">Subject</th>
-                <th class="text-uppercase text-secondary" style="font-size: 0.85rem;">Semester</th>
-                <th class="text-uppercase text-secondary" style="font-size: 0.85rem;">Professor</th>
-                <th class="text-uppercase text-secondary" style="font-size: 0.85rem;">Day & Time</th>
-                <th class="text-uppercase text-secondary text-end" style="font-size: 0.85rem;">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for c in classes %}
-              <tr>
-                <td class="fw-bold">{{ c.subject_name }}</td>
-                <td><span class="badge bg-info rounded-pill">{{ c.semester }}</span></td>
-                <td>{{ c.professor_name }}</td>
-                <td>
-                  <div class="fw-semibold">{{ c.day_of_week }}</div>
-                  <div class="text-muted small">{{ c.start_time }} - {{ c.end_time }}</div>
-                </td>
-                <td class="text-end">
-                  <a href="{{ url_for('edit_class', class_id=c.id) }}" class="btn btn-sm btn-outline-warning rounded-pill px-3 shadow-sm me-1">✏️ Edit</a>
-                  <a href="{{ url_for('delete_class', class_id=c.id) }}" class="btn btn-sm btn-outline-danger rounded-pill px-3 shadow-sm" onclick="return confirm('Delete this class?')">🗑 Delete</a>
-                </td>
-              </tr>
-              {% else %}
-              <tr>
-                <td colspan="5" class="text-center text-muted py-4">No classes scheduled yet.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+        <!-- Header with Stats -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title fw-bold mb-0">🏫 Scheduled Classes</h5>
+          <span class="badge bg-primary rounded-pill px-3 py-2 fs-6" id="totalCount">{{ classes|length }} Total</span>
         </div>
+
+        <!-- Filter Bar -->
+        <div class="row g-2 mb-3">
+          <div class="col-sm-6">
+            <select class="form-select form-select-sm rounded-pill" id="filterProfessor">
+              <option value="all">All Professors</option>
+              {% set seen_profs = [] %}
+              {% for c in classes %}
+                {% if c.professor_name not in seen_profs %}
+                  {{ seen_profs.append(c.professor_name) or '' }}
+                  <option value="{{ c.professor_name }}">👨‍🏫 {{ c.professor_name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-sm-6">
+            <select class="form-select form-select-sm rounded-pill" id="filterDay">
+              <option value="all">All Days</option>
+              <option value="Monday">Monday</option>
+              <option value="Tuesday">Tuesday</option>
+              <option value="Wednesday">Wednesday</option>
+              <option value="Thursday">Thursday</option>
+              <option value="Friday">Friday</option>
+              <option value="Saturday">Saturday</option>
+              <option value="Sunday">Sunday</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Classes List (Card-Style) -->
+        <div style="max-height: 520px; overflow-y: auto; padding-right: 4px;" id="classesContainer">
+          {% if classes %}
+            {% for c in classes %}
+            <div class="class-item border rounded-3 p-3 mb-2 bg-white hover-shadow" 
+                 data-professor="{{ c.professor_name }}" 
+                 data-day="{{ c.day_of_week }}"
+                 style="transition: all 0.2s;">
+              <div class="d-flex justify-content-between align-items-start">
+                <div class="d-flex align-items-start gap-3">
+                  <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center flex-shrink-0" style="width:42px; height:42px;">
+                    <span class="fw-bold text-primary">{{ c.subject_name[:2]|upper }}</span>
+                  </div>
+                  <div>
+                    <h6 class="fw-bold mb-1">{{ c.subject_name }}</h6>
+                    <div class="d-flex flex-wrap gap-1 mb-1">
+                      <span class="badge bg-info bg-opacity-75 rounded-pill" style="font-size: 0.7rem;">{{ c.semester }}</span>
+                      <span class="badge bg-secondary bg-opacity-75 rounded-pill" style="font-size: 0.7rem;">{{ c.day_of_week }}</span>
+                    </div>
+                    <small class="text-muted">
+                      <i class="fas fa-user-tie me-1"></i>{{ c.professor_name }} · 
+                      <i class="fas fa-clock me-1"></i>{{ c.start_time }} – {{ c.end_time }}
+                    </small>
+                  </div>
+                </div>
+                <div class="d-flex gap-1 flex-shrink-0">
+                  <a href="{{ url_for('edit_class', class_id=c.id) }}" class="btn btn-sm btn-outline-warning rounded-pill px-2 py-1" title="Edit">
+                    <i class="fas fa-pen" style="font-size: 0.7rem;"></i>
+                  </a>
+                  <a href="{{ url_for('delete_class', class_id=c.id) }}" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1" onclick="return confirm('Delete this class?')" title="Delete">
+                    <i class="fas fa-trash" style="font-size: 0.7rem;"></i>
+                  </a>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <div class="text-center text-muted py-5">
+              <i class="fas fa-calendar-plus fa-3x mb-3 text-muted opacity-50"></i>
+              <p class="fw-semibold">No classes scheduled yet.</p>
+              <p class="small">Use the form on the left to add your first class.</p>
+            </div>
+          {% endif %}
+        </div>
+
       </div>
     </div>
   </div>
 </div>
+
+<style>
+  .class-item:hover {
+    background-color: #f8f9fa !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  #classesContainer::-webkit-scrollbar { width: 4px; }
+  #classesContainer::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 4px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  const filterProfessor = document.getElementById('filterProfessor');
+  const filterDay = document.getElementById('filterDay');
+  const totalCount = document.getElementById('totalCount');
+  const items = document.querySelectorAll('.class-item');
+
+  function applyFilters() {
+    const prof = filterProfessor.value;
+    const day = filterDay.value;
+    let visible = 0;
+
+    items.forEach(item => {
+      const matchProf = (prof === 'all' || item.dataset.professor === prof);
+      const matchDay = (day === 'all' || item.dataset.day === day);
+      
+      if (matchProf && matchDay) {
+        item.style.display = '';
+        visible++;
+      } else {
+        item.style.display = 'none';
+      }
+    });
+
+    totalCount.textContent = visible + ' of ' + items.length;
+  }
+
+  filterProfessor.addEventListener('change', applyFilters);
+  filterDay.addEventListener('change', applyFilters);
+</script>
 {% endblock %}

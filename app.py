@@ -452,6 +452,28 @@ Khushal Degree College
         print(f"❌ Failed to send leave status email to {student_email}: {e}")
         return False
 
+
+def send_leave_status_emails_in_background(email_data_list):
+    """Send leave application status emails in a background thread."""
+    def email_worker():
+        print(f"Background Email Task Started: Sending {len(email_data_list)} leave emails...")
+        for i, data in enumerate(email_data_list):
+            try:
+                # the function already uses app.app_context internally, but just in case
+                send_leave_status_notification(
+                    data['email'], data['name'], data['status'], data['subject'], 
+                    data['start_date'], data['end_date'], data['purpose']
+                )
+                if i < len(email_data_list) - 1:
+                    time.sleep(1)
+            except Exception as e:
+                print(f"Error in background leave email: {e}")
+        print("Background Leave Email Task Completed.")
+    
+    thread = threading.Thread(target=email_worker)
+    thread.daemon = True
+    thread.start()
+
 def send_reset_password_email_in_background(email, reset_url, role):
     """Send password reset email in a background thread."""
     def email_worker():
@@ -1220,6 +1242,13 @@ def student_dashboard():
     if not db:
         return "Database connection error", 500
     cursor = db.cursor(dictionary=True)
+    
+    # Get student semester
+    cursor.execute("SELECT semester FROM students WHERE id=%s", (session['user_id'],))
+    student_data = cursor.fetchone()
+    student_semester = student_data['semester'] if student_data else None
+
+    # Get Attendance Data
     cursor.execute("""
         SELECT c.subject_name, COUNT(a.id) as total_classes,
                SUM(CASE WHEN a.status='Present' THEN 1 ELSE 0 END) as presents,
@@ -1229,10 +1258,19 @@ def student_dashboard():
     """, (session['user_id'],))
     attendance_data = cursor.fetchall()
 
-    cursor.execute("SELECT * FROM leaves WHERE student_id=%s ORDER BY created_at DESC", (session['user_id'],))
+    # Get Leaves with Professor Name
+    cursor.execute("""
+        SELECT l.*, MAX(p.name) as professor_name
+        FROM leaves l
+        LEFT JOIN classes c ON l.subject_name = c.subject_name AND c.semester = %s
+        LEFT JOIN professors p ON c.professor_id = p.id
+        WHERE l.student_id = %s
+        GROUP BY l.id
+        ORDER BY l.created_at DESC
+    """, (student_semester, session['user_id']))
     leaves = cursor.fetchall()
 
-    # New query for the donut chart
+    # Get Donut Chart Stats
     cursor.execute("""
         SELECT 
             SUM(CASE WHEN status='Present' THEN 1 ELSE 0 END) as total_present,
@@ -1245,15 +1283,30 @@ def student_dashboard():
     if not overall_stats['total_present'] and not overall_stats['total_absent'] and not overall_stats['total_leave']: 
         overall_stats = {'total_present': 0, 'total_absent': 0, 'total_leave': 0}
 
+    # Get Timetable
+    timetable = []
+    if student_semester:
+        cursor.execute("""
+            SELECT c.subject_name, c.day_of_week, c.start_time, c.end_time, p.name as professor_name
+            FROM classes c
+            LEFT JOIN professors p ON c.professor_id = p.id
+            WHERE c.semester = %s
+            ORDER BY FIELD(c.day_of_week, 'Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'), c.start_time
+        """, (student_semester,))
+        
+        from datetime import datetime
+        raw_timetable = cursor.fetchall()
+        for t in raw_timetable:
+            if hasattr(t['start_time'], 'seconds'):
+                t['start_time'] = (datetime.min + t['start_time']).time().strftime("%I:%M %p")
+            if hasattr(t['end_time'], 'seconds'):
+                t['end_time'] = (datetime.min + t['end_time']).time().strftime("%I:%M %p")
+            timetable.append(t)
+
     cursor.close()
     db.close()
 
-    grouped_leaves = {}
-    for r in leaves:
-        d = r['created_at'].strftime('%A, %B %d, %Y') if r['created_at'] else "Unknown"
-        grouped_leaves.setdefault(d, []).append(r)
-
-    return render_template('student_dashboard.html', attendance_data=attendance_data, grouped_leaves=grouped_leaves, student_name=session['name'], overall_stats=overall_stats)
+    return render_template('student_dashboard.html', attendance_data=attendance_data, leaves=leaves, student_name=session['name'], overall_stats=overall_stats, timetable=timetable)
 
 
 @app.route('/student_logout')
@@ -1284,7 +1337,7 @@ def apply_leave():
             return "Database connection error", 500
         cursor = db.cursor(dictionary=True)
 
-        cursor.execute("SELECT id, name, roll_no, email FROM students WHERE id = %s", (logged_in_student_id,))
+        cursor.execute("SELECT id, name, roll_no, email, semester FROM students WHERE id = %s", (logged_in_student_id,))
         student = cursor.fetchone()
         cursor.execute("SELECT subject_name FROM classes")
         classes = cursor.fetchall()
@@ -1308,10 +1361,19 @@ def apply_leave():
                     (logged_in_student_id, subject_name, application_purpose, application_text, start_date, end_date)
                 )
             else:
-                cursor.execute(
-                    "INSERT INTO leaves (student_id, subject_name, application_purpose, application_text, start_date, end_date, status) VALUES (%s, %s, %s, %s, %s, %s, 'Pending')",
-                    (logged_in_student_id, None, application_purpose, application_text, start_date, end_date)
-                )
+                cursor.execute("SELECT DISTINCT subject_name FROM classes WHERE semester = %s", (student['semester'],))
+                student_subjects = cursor.fetchall()
+                if student_subjects:
+                    for sub in student_subjects:
+                        cursor.execute(
+                            "INSERT INTO leaves (student_id, subject_name, application_purpose, application_text, start_date, end_date, status) VALUES (%s, %s, %s, %s, %s, %s, 'Pending')",
+                            (logged_in_student_id, sub['subject_name'], application_purpose, application_text, start_date, end_date)
+                        )
+                else:
+                    cursor.execute(
+                        "INSERT INTO leaves (student_id, subject_name, application_purpose, application_text, start_date, end_date, status) VALUES (%s, %s, %s, %s, %s, %s, 'Pending')",
+                        (logged_in_student_id, None, application_purpose, application_text, start_date, end_date)
+                    )
 
             db.commit()
 
@@ -1637,7 +1699,7 @@ def professor_dashboard():
     present_count = cursor.fetchone()['count']
 
     cursor.execute("""
-        SELECT COUNT(DISTINCT l.id) as count
+        SELECT COUNT(DISTINCT CONCAT(l.student_id, '_', l.start_date, '_', l.end_date)) as count
         FROM leaves l
         JOIN students s ON l.student_id = s.id
         WHERE l.status = 'Pending'
@@ -1827,71 +1889,88 @@ def professor_leaves():
     cursor = db.cursor(dictionary=True)
 
     if request.method == 'POST':
-        leave_id = request.form.get('leave_id')
+        leave_ids = request.form.getlist('leave_ids')
         action = request.form.get('action')
 
+        if not leave_ids:
+            flash("No leaves selected to process.", "warning")
+            return redirect(url_for('professor_leaves'))
+
         try:
-            cursor.execute("""
-                SELECT l.*, s.name, s.email, s.semester
-                FROM leaves l
-                JOIN students s ON l.student_id = s.id
-                WHERE l.id = %s
-            """, (leave_id,))
-            leave = cursor.fetchone()
+            processed_count = 0
+            for l_id in leave_ids:
+                cursor.execute("""
+                    SELECT l.*, s.name, s.email, s.semester
+                    FROM leaves l
+                    JOIN students s ON l.student_id = s.id
+                    WHERE l.id = %s
+                """, (l_id,))
+                leave = cursor.fetchone()
 
-            if leave:
-                cursor.execute("UPDATE leaves SET status = %s WHERE id = %s", (action, leave_id))
+                if leave:
+                    cursor.execute("UPDATE leaves SET status = %s WHERE id = %s", (action, l_id))
 
-                if action == 'Approved':
-                    student_id = leave['student_id']
-                    subject_name = leave['subject_name']
-                    semester = leave['semester']
-                    start_date = leave['start_date']
-                    end_date = leave['end_date']
+                    if action == 'Approved':
+                        student_id = leave['student_id']
+                        subject_name = leave['subject_name']
+                        semester = leave['semester']
+                        start_date = leave['start_date']
+                        end_date = leave['end_date']
 
-                    if isinstance(start_date, str):
-                        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-                    if isinstance(end_date, str):
-                        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+                        if isinstance(start_date, str):
+                            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+                        if isinstance(end_date, str):
+                            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
 
-                    current_date = start_date
-                    while current_date <= end_date:
-                        day_name = current_date.strftime('%A')
-                        if subject_name:
-                            cursor.execute("SELECT id FROM classes WHERE subject_name = %s AND semester = %s AND day_of_week = %s", (subject_name, semester, day_name))
-                        else:
-                            cursor.execute("SELECT id FROM classes WHERE semester = %s AND day_of_week = %s", (semester, day_name))
+                        current_date = start_date
+                        while current_date <= end_date:
+                            day_name = current_date.strftime('%A')
+                            if subject_name:
+                                cursor.execute("SELECT id FROM classes WHERE subject_name = %s AND semester = %s AND day_of_week = %s", (subject_name, semester, day_name))
+                            else:
+                                cursor.execute("SELECT id FROM classes WHERE semester = %s AND day_of_week = %s", (semester, day_name))
 
-                        target_classes = cursor.fetchall()
+                            target_classes = cursor.fetchall()
 
-                        for cls in target_classes:
-                            class_id = cls['id']
-                            cursor.execute("DELETE FROM attendance WHERE student_id = %s AND class_id = %s AND date = %s", (student_id, class_id, current_date))
-                            cursor.execute("""
-                                INSERT INTO attendance (student_id, class_id, date, time, status, method)
-                                VALUES (%s, %s, %s, NOW(), 'Leave', 'system')
-                            """, (student_id, class_id, current_date))
+                            for cls in target_classes:
+                                class_id = cls['id']
+                                cursor.execute("DELETE FROM attendance WHERE student_id = %s AND class_id = %s AND date = %s", (student_id, class_id, current_date))
+                                cursor.execute("""
+                                    INSERT INTO attendance (student_id, class_id, date, time, status, method)
+                                    VALUES (%s, %s, %s, NOW(), 'Leave', 'system')
+                                """, (student_id, class_id, current_date))
 
-                        current_date += timedelta(days=1)
+                            current_date += timedelta(days=1)
 
-                db.commit()
-
-                if leave['email']:
-                    try:
-                        send_leave_status_notification(
-                            leave['email'], leave['name'], action, leave['subject_name'] or 'All Subjects',
-                            leave['start_date'], leave['end_date'], leave.get('application_purpose')
-                        )
-                    except Exception as e:
-                        print(f"❌ Email sending error: {e}")
-
-                flash(f"Leave {action} successfully! Notifications sent.", "success")
+                    if leave['email']:
+                        if 'email_data_list' not in locals():
+                            email_data_list = []
+                        email_data_list.append({
+                            'email': leave['email'],
+                            'name': leave['name'],
+                            'status': action,
+                            'subject': leave['subject_name'] or 'All Subjects',
+                            'start_date': leave['start_date'],
+                            'end_date': leave['end_date'],
+                            'purpose': leave.get('application_purpose')
+                        })
+                    
+                    processed_count += 1
+            
+            db.commit()
+            
+            # Send emails in background
+            if 'email_data_list' in locals() and email_data_list:
+                send_leave_status_emails_in_background(email_data_list)
+                
+            flash(f"{processed_count} leave application(s) {action} successfully! Notifications are being sent in the background.", "success")
         except Exception as e:
             db.rollback()
             flash(f"Error processing leave: {e}", "error")
 
         return redirect(url_for('professor_leaves'))
 
+    # GET request
     cursor.execute("""
         SELECT DISTINCT l.*, s.name, s.roll_no, s.semester
         FROM leaves l
@@ -1911,7 +1990,25 @@ def professor_leaves():
         ORDER BY l.start_date DESC
     """, (professor_id, professor_id))
 
-    leave_records = cursor.fetchall()
+    raw_pending = cursor.fetchall()
+    
+    grouped_pending = {}
+    for l in raw_pending:
+        key = f"{l['student_id']}_{l['start_date']}_{l['end_date']}_{str(l['application_purpose'])[:20]}"
+        if key not in grouped_pending:
+            grouped_pending[key] = {
+                'name': l['name'],
+                'roll_no': l['roll_no'],
+                'semester': l['semester'],
+                'start_date': l['start_date'],
+                'end_date': l['end_date'],
+                'application_purpose': l['application_purpose'],
+                'application_text': l['application_text'],
+                'leaves': []
+            }
+        grouped_pending[key]['leaves'].append(l)
+    
+    grouped_pending_list = list(grouped_pending.values())
 
     cursor.execute("""
         SELECT DISTINCT l.*, s.name, s.roll_no, s.semester
@@ -1931,12 +2028,13 @@ def professor_leaves():
         )
         ORDER BY l.start_date DESC
     """, (professor_id, professor_id))
+
     historical_leaves = cursor.fetchall()
 
     cursor.close()
     db.close()
 
-    return render_template('professor_leaves.html', leave_records=leave_records, historical_leaves=historical_leaves)
+    return render_template('professor_leaves.html', grouped_pending_list=grouped_pending_list, historical_leaves=historical_leaves)
 
 
 

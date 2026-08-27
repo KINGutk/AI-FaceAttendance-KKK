@@ -3,7 +3,6 @@
 
 {% block content %}
 <style>
-  /* Keep specific custom styles for the camera overlay since bootstrap doesn't have these exact components */
   .cam-container {
     position: relative;
     border-radius: 16px;
@@ -50,6 +49,19 @@
   .liveness-challenge.active { display: block; animation: slideUp 0.3s ease; }
   @keyframes slideUp { from{ opacity:0; transform:translateX(-50%) translateY(10px); } to{ opacity:1; transform:translateX(-50%) translateY(0); } }
   canvas { display: none; }
+  /* Group Mode Styles */
+  .group-result-card {
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from{ opacity:0; transform:translateY(5px); } to{ opacity:1; transform:translateY(0); } }
+  .mode-toggle .btn { transition: all 0.3s; }
+  .group-scan-overlay {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.75); backdrop-filter: blur(8px);
+    border: 1px solid #198754; border-radius: 30px;
+    padding: 8px 20px; font-weight: 600; color: #198754;
+    white-space: nowrap;
+  }
 </style>
 
 <div class="row justify-content-center">
@@ -58,6 +70,32 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h3 class="fw-bold mb-0">📡 Live <span class="text-primary">Scanner</span></h3>
       <span class="badge bg-danger rounded-pill px-3 py-2 animate__animated animate__pulse animate__infinite"><i class="bi bi-record-circle me-1"></i> LIVE</span>
+    </div>
+
+    <!-- MODE TOGGLE -->
+    <div class="card shadow-sm border-0 rounded-4 mb-3 mode-toggle">
+      <div class="card-body p-2">
+        <div class="btn-group w-100" role="group">
+          <input type="radio" class="btn-check" name="scanMode" id="secureMode" checked>
+          <label class="btn btn-outline-primary fw-bold py-2 rounded-start-4" for="secureMode">
+            <i class="fas fa-shield-alt me-1"></i> 🔒 Secure Mode
+          </label>
+          <input type="radio" class="btn-check" name="scanMode" id="groupMode">
+          <label class="btn btn-outline-success fw-bold py-2 rounded-end-4" for="groupMode">
+            <i class="fas fa-users me-1"></i> ⚡ Group Mode
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODE DESCRIPTION -->
+    <div class="alert alert-primary border-0 rounded-3 shadow-sm mb-3 d-flex align-items-center" id="secureModeInfo">
+      <i class="fas fa-info-circle me-2 fs-5"></i>
+      <small class="fw-semibold">1 student at a time • Blink/Smile liveness check • Anti-spoofing protection</small>
+    </div>
+    <div class="alert alert-success border-0 rounded-3 shadow-sm mb-3 d-flex align-items-center d-none" id="groupModeInfo">
+      <i class="fas fa-bolt me-2 fs-5"></i>
+      <small class="fw-semibold">Multiple faces at once • Strict AI threshold (50%) • Min face size filter</small>
     </div>
 
     <div class="card shadow-sm border-0 rounded-4 mb-3 bg-light">
@@ -74,20 +112,31 @@
       <video id="video" autoplay playsinline></video>
       <div class="face-overlay">
         <div class="scan-line"></div>
-        <div class="face-oval-wrap">
+        <!-- Secure Mode Overlay -->
+        <div class="face-oval-wrap" id="secureOverlay">
           <div class="face-oval scanning" id="faceOval"></div>
         </div>
         <div class="c tl"></div><div class="c tr"></div>
         <div class="c bl"></div><div class="c br"></div>
       </div>
       <div class="liveness-challenge" id="livenessChallenge">👁️ Please blink your eyes</div>
+      <!-- Group Mode Overlay -->
+      <div class="group-scan-overlay d-none" id="groupOverlay">⚡ Scanning all faces...</div>
     </div>
 
+    <!-- Secure Mode Chips -->
     <div class="row g-2 mb-3" id="livenessRow">
       <div class="col-3"><div class="card bg-white border rounded-3 text-center p-2 h-100" id="lc_face"><small class="d-block mb-1 fs-5">🎯</small><span class="small fw-semibold text-muted">Face</span></div></div>
       <div class="col-3"><div class="card bg-white border rounded-3 text-center p-2 h-100" id="lc_live"><small class="d-block mb-1 fs-5">✅</small><span class="small fw-semibold text-muted">Liveness</span></div></div>
       <div class="col-3"><div class="card bg-white border rounded-3 text-center p-2 h-100" id="lc_match"><small class="d-block mb-1 fs-5">🪪</small><span class="small fw-semibold text-muted">ID Match</span></div></div>
       <div class="col-3"><div class="card bg-white border rounded-3 text-center p-2 h-100" id="lc_conf"><small class="d-block mb-1 fs-5">📊</small><span class="small fw-semibold text-muted">Confidence</span></div></div>
+    </div>
+
+    <!-- Group Mode Chips -->
+    <div class="row g-2 mb-3 d-none" id="groupChipsRow">
+      <div class="col-4"><div class="card bg-white border rounded-3 text-center p-2 h-100" id="gc_detected"><small class="d-block mb-1 fs-5">👁️</small><span class="small fw-semibold text-muted" id="gc_detected_count">0 Detected</span></div></div>
+      <div class="col-4"><div class="card bg-white border rounded-3 text-center p-2 h-100" id="gc_marked"><small class="d-block mb-1 fs-5">✅</small><span class="small fw-semibold text-muted" id="gc_marked_count">0 Marked</span></div></div>
+      <div class="col-4"><div class="card bg-white border rounded-3 text-center p-2 h-100" id="gc_unknown"><small class="d-block mb-1 fs-5">❓</small><span class="small fw-semibold text-muted" id="gc_unknown_count">0 Unknown</span></div></div>
     </div>
 
     <div class="card shadow-sm border-0 rounded-4 mb-4" id="statusCard">
@@ -136,6 +185,49 @@ const logList     = document.getElementById('logList');
 const logEmpty    = document.getElementById('logEmpty');
 const livenessChallenge = document.getElementById('livenessChallenge');
 
+// Mode Elements
+const secureModeRadio = document.getElementById('secureMode');
+const groupModeRadio  = document.getElementById('groupMode');
+const secureModeInfo  = document.getElementById('secureModeInfo');
+const groupModeInfo   = document.getElementById('groupModeInfo');
+const secureOverlay   = document.getElementById('secureOverlay');
+const groupOverlay    = document.getElementById('groupOverlay');
+const livenessRow     = document.getElementById('livenessRow');
+const groupChipsRow   = document.getElementById('groupChipsRow');
+
+let currentMode = 'secure'; // 'secure' or 'group'
+
+// Mode Switch Logic
+secureModeRadio.addEventListener('change', () => {
+  currentMode = 'secure';
+  secureModeInfo.classList.remove('d-none');
+  groupModeInfo.classList.add('d-none');
+  secureOverlay.classList.remove('d-none');
+  groupOverlay.classList.add('d-none');
+  livenessRow.classList.remove('d-none');
+  groupChipsRow.classList.add('d-none');
+  livenessChallenge.classList.add('active');
+  rotateLivenessChallenge();
+  resetChips();
+  setStatus('🔍', 'Secure Mode Active', 'Position your face inside the oval', 'orange');
+});
+
+groupModeRadio.addEventListener('change', () => {
+  currentMode = 'group';
+  secureModeInfo.classList.add('d-none');
+  groupModeInfo.classList.remove('d-none');
+  secureOverlay.classList.add('d-none');
+  groupOverlay.classList.remove('d-none');
+  livenessRow.classList.add('d-none');
+  groupChipsRow.classList.remove('d-none');
+  livenessChallenge.classList.remove('active');
+  setStatus('⚡', 'Group Mode Active', 'All visible faces will be scanned automatically', 'green');
+  startGroupScanning();
+});
+
+// ========================
+// SHARED UTILITIES
+// ========================
 const CHALLENGES = [
   { text: '👁️ Blink your eyes slowly', key: 'blink' },
   { text: '😊 Give a smile', key: 'smile' },
@@ -149,9 +241,9 @@ let isSending = false;
 let challengePassed = false;
 let livenessPassedFrames = 0;
 
-// Chip helpers
 function chipUpdate(id, state) {
   const el = document.getElementById('lc_' + id);
+  if(!el) return;
   if(state === 'active') {
     el.className = 'card border-warning bg-warning bg-opacity-10 text-center p-2 h-100';
     el.querySelector('span').className = 'small fw-bold text-warning';
@@ -200,9 +292,9 @@ function addLog(name, roll, status) {
   if (logEmpty) logEmpty.style.display = 'none';
   
   const div = document.createElement('div');
-  div.className = 'list-group-item px-0 d-flex justify-content-between align-items-center bg-transparent border-bottom';
+  div.className = 'list-group-item px-0 d-flex justify-content-between align-items-center bg-transparent border-bottom group-result-card';
   
-  const badgeClass = status === 'Present' ? 'bg-success' : 'bg-danger';
+  const badgeClass = status === 'Present' ? 'bg-success' : (status === 'Already' ? 'bg-info' : 'bg-danger');
   
   div.innerHTML = `
     <div class="d-flex align-items-center gap-3">
@@ -211,16 +303,20 @@ function addLog(name, roll, status) {
       </div>
       <div>
         <h6 class="mb-0 fw-bold">${name}</h6>
-        <small class="text-muted">${new Date().toLocaleTimeString()}</small>
+        <small class="text-muted">${roll ? 'Roll: ' + roll + ' • ' : ''}${new Date().toLocaleTimeString()}</small>
       </div>
     </div>
     <span class="badge rounded-pill ${badgeClass}">${status}</span>
   `;
   logList.prepend(div);
   const entries = logList.querySelectorAll('.list-group-item');
-  if (entries.length > 5) entries[entries.length-1].remove();
+  if (entries.length > 8) entries[entries.length-1].remove();
 }
 
+
+// ========================
+// SECURE MODE LOGIC (Original)
+// ========================
 function rotateLivenessChallenge() {
   const c = CHALLENGES[challengeIdx % CHALLENGES.length];
   currentChallenge = c.key;
@@ -340,6 +436,104 @@ async function sendFrameToServer() {
   }, 3500);
 }
 
+
+// ========================
+// GROUP MODE LOGIC (New)
+// ========================
+let groupInterval = null;
+
+function startGroupScanning() {
+  if (groupInterval) clearInterval(groupInterval);
+  groupInterval = setInterval(() => {
+    if (currentMode === 'group' && !isSending) {
+      sendGroupFrame();
+    }
+  }, 2500); // Scan every 2.5 seconds
+}
+
+async function sendGroupFrame() {
+  if (isSending) return;
+  isSending = true;
+  
+  const ctx = canvas.getContext('2d');
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video, 0, 0);
+  const dataURL = canvas.toDataURL('image/jpeg', 0.8);
+
+  groupOverlay.textContent = '⚡ Scanning...';
+  setStatus('⚡', 'Scanning all faces...', 'Hold still, processing group', 'green');
+
+  try {
+    const res = await fetch('/process_frame_group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: dataURL }),
+      credentials: 'same-origin'
+    });
+    const data = await res.json();
+    
+    const cls = data.class_info || 'No active class';
+    classDisp.textContent = '📚 ' + cls;
+    classSub.textContent  = new Date().toLocaleTimeString();
+
+    const results = data.results || [];
+    const detected = data.faces_detected || 0;
+    let markedCount = 0;
+    let unknownCount = 0;
+
+    results.forEach(r => {
+      if (r.status === 'marked') {
+        markedCount++;
+        addLog(r.name, r.roll, 'Present');
+      } else if (r.status === 'already') {
+        addLog(r.name, r.roll, 'Already');
+      } else if (r.status === 'unknown') {
+        unknownCount++;
+      } else if (r.status === 'wrong_class') {
+        addLog(r.name, r.roll, 'Wrong Class');
+      }
+    });
+
+    // Update group chips
+    document.getElementById('gc_detected_count').textContent = detected + ' Detected';
+    document.getElementById('gc_marked_count').textContent = markedCount + ' Marked';
+    document.getElementById('gc_unknown_count').textContent = unknownCount + ' Unknown';
+
+    // Update chip colors
+    document.getElementById('gc_detected').className = detected > 0 ? 'card border-primary bg-primary bg-opacity-10 text-center p-2 h-100' : 'card bg-white border rounded-3 text-center p-2 h-100';
+    document.getElementById('gc_marked').className = markedCount > 0 ? 'card border-success bg-success bg-opacity-10 text-center p-2 h-100' : 'card bg-white border rounded-3 text-center p-2 h-100';
+    document.getElementById('gc_unknown').className = unknownCount > 0 ? 'card border-danger bg-danger bg-opacity-10 text-center p-2 h-100' : 'card bg-white border rounded-3 text-center p-2 h-100';
+
+    if (markedCount > 0) {
+      groupOverlay.textContent = `✅ ${markedCount} student(s) marked!`;
+      setStatus('✅', `${markedCount} student(s) marked present`, `${detected} face(s) detected • ${unknownCount} unknown`, 'green');
+    } else if (detected > 0 && results.length > 0) {
+      const allAlready = results.every(r => r.status === 'already');
+      if (allAlready) {
+        groupOverlay.textContent = '✔️ All already marked';
+        setStatus('✔️', 'All detected students already marked', `${detected} face(s) detected`, 'blue');
+      } else {
+        groupOverlay.textContent = `⚡ ${detected} face(s) found`;
+        setStatus('⚡', `${detected} face(s) detected`, `${unknownCount} unknown`, 'orange');
+      }
+    } else if (data.message) {
+      groupOverlay.textContent = '👁️ Looking for faces...';
+      setStatus('🔍', data.message, 'Position students in front of camera', 'orange');
+    }
+
+  } catch (err) {
+    console.error(err);
+    setStatus('⚠️', 'Connection issue', 'Retrying...', '');
+  }
+
+  isSending = false;
+}
+
+
+// ========================
+// CAMERA & FACE MESH INIT
+// ========================
 const faceMesh = new FaceMesh({locateFile: (file) => {
   return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
 }});
@@ -351,6 +545,8 @@ faceMesh.setOptions({
 });
 
 faceMesh.onResults((results) => {
+  // Only run liveness in secure mode
+  if (currentMode !== 'secure') return;
   if (isSending) return;
 
   if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {

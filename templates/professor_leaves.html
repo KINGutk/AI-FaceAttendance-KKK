@@ -4,45 +4,59 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h2 class="fw-bold text-primary mb-0">📨 Manage Leaves</h2>
+  <button class="btn btn-outline-primary rounded-pill fw-bold shadow-sm" type="button" data-bs-toggle="collapse" data-bs-target="#historySection" aria-expanded="false" aria-controls="historySection">
+    📜 Show Leave History
+  </button>
 </div>
 
-<div class="row g-4">
-  {% if leave_records %}
-    {% for leave in leave_records %}
+<!-- PENDING LEAVES SECTION -->
+<div class="row g-4 mb-5">
+  <h5 class="fw-bold text-secondary mb-2">Pending Applications</h5>
+  {% if grouped_pending_list %}
+    {% for group in grouped_pending_list %}
     <div class="col-md-6">
-      <div class="card shadow-sm border-0 rounded-4 h-100">
+      <div class="card shadow-sm border-0 rounded-4 h-100 border-start border-4 border-warning">
         <div class="card-header bg-transparent border-bottom pt-4 pb-3 d-flex justify-content-between align-items-start">
           <div>
-            <h5 class="fw-bold mb-1">{{ leave.name }}</h5>
-            <span class="text-muted small">{{ leave.roll_no }}</span>
+            <h5 class="fw-bold mb-1">{{ group.name }}</h5>
+            <span class="text-muted small">{{ group.roll_no }}</span>
           </div>
           <div class="text-end">
-            <span class="badge bg-dark rounded-pill mb-1 d-inline-block">{{ leave.semester }}</span><br>
-            {% if leave.subject_name %}
-              <span class="badge bg-info text-dark rounded-pill">{{ leave.subject_name }}</span>
-            {% else %}
-              <span class="badge bg-primary rounded-pill">All Subjects</span>
-            {% endif %}
+            <span class="badge bg-dark rounded-pill mb-1">{{ group.semester }}</span>
           </div>
         </div>
         
-        <div class="card-body">
+        <div class="card-body pb-2">
           <div class="mb-3">
-            <span class="badge bg-light text-dark border px-3 py-2 rounded-pill shadow-sm">📅 {{ leave.start_date }} ➝ {{ leave.end_date }}</span>
+            <span class="badge bg-light text-dark border px-3 py-2 rounded-pill shadow-sm">📅 {{ group.start_date }} ➝ {{ group.end_date }}</span>
           </div>
-          <p class="mb-0"><strong>📝 Reason:</strong> {{ leave.application_purpose }}</p>
+          <p class="mb-3 text-muted small text-truncate" style="max-height: 40px;"><strong>📝 Reason:</strong> {{ group.application_purpose }}</p>
+          
+          <form method="POST" id="form-{{ loop.index }}">
+            <h6 class="fw-bold text-muted small mb-2">Subjects requested:</h6>
+            <div class="bg-light p-2 rounded-3 mb-3 border">
+              {% for l in group.leaves %}
+              <div class="form-check custom-checkbox mb-1">
+                <input class="form-check-input shadow-sm" type="checkbox" name="leave_ids" value="{{ l.id }}" id="leave-{{ l.id }}" checked>
+                <label class="form-check-label small fw-bold" for="leave-{{ l.id }}">
+                  {{ l.subject_name or 'All Subjects (Legacy)' }}
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+          
         </div>
         
         <div class="card-footer bg-transparent border-top-0 pb-4 pt-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
-          <button class="btn btn-outline-secondary rounded-pill btn-sm fw-bold px-3" 
-                  onclick="openModal(`{{ leave.application_purpose }}`, `{{ leave.application_text }}`)">
-              📄 View Letter
+          <button type="button" class="btn btn-outline-secondary rounded-pill btn-sm fw-bold px-3" 
+                  onclick="openModal(`{{ group.application_purpose }}`, `{{ group.application_text }}`)">
+              📄 Read Full Letter
           </button>
 
-          <form method="POST" class="d-flex gap-2 mb-0">
-              <input type="hidden" name="leave_id" value="{{ leave.id }}">
-              <button type="submit" name="action" value="Approved" class="btn btn-success rounded-pill btn-sm fw-bold px-3">✔ Approve</button>
-              <button type="submit" name="action" value="Rejected" class="btn btn-danger rounded-pill btn-sm fw-bold px-3">✖ Reject</button>
+          <div class="d-flex gap-2 mb-0">
+              <button type="submit" name="action" value="Approved" class="btn btn-success rounded-pill btn-sm fw-bold px-3 shadow-sm">✔ Approve Selected</button>
+              <button type="submit" name="action" value="Rejected" class="btn btn-danger rounded-pill btn-sm fw-bold px-3 shadow-sm">✖ Reject Selected</button>
+          </div>
           </form>
         </div>
       </div>
@@ -51,17 +65,114 @@
   {% else %}
     <div class="col-12">
       <div class="card shadow-sm border-0 rounded-4">
-        <div class="card-body text-center p-5">
-          <h4 class="text-muted mb-0 fst-italic">✨ No pending leave applications for your classes.</h4>
+        <div class="card-body text-center p-5 bg-white rounded-4">
+          <i class="fas fa-check-circle fa-3x text-success opacity-50 mb-3"></i>
+          <h4 class="text-muted mb-0 fst-italic">✨ No pending leave applications.</h4>
         </div>
       </div>
     </div>
   {% endif %}
 </div>
 
+<!-- LEAVE HISTORY SECTION (Collapsible) -->
+<div class="collapse" id="historySection">
+  <div class="card shadow-sm border-0 rounded-4 mb-4">
+    <div class="card-body p-4">
+      <h5 class="card-title fw-bold mb-4">🕰️ Leave History</h5>
+      
+      <!-- Filters -->
+      <div class="row g-3 mb-4 bg-light p-3 rounded-3">
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-muted">Filter by Status</label>
+          <select class="form-select form-select-sm rounded-pill shadow-sm" id="statusFilter">
+            <option value="all">All Statuses</option>
+            <option value="Approved">🟢 Approved</option>
+            <option value="Rejected">🔴 Rejected</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-bold small text-muted">Filter by Semester</label>
+          <select class="form-select form-select-sm rounded-pill shadow-sm" id="semesterFilter">
+            <option value="all">All Semesters</option>
+            <option value="1st Semester">1st Semester</option>
+            <option value="2nd Semester">2nd Semester</option>
+            <option value="3rd Semester">3rd Semester</option>
+            <option value="4th Semester">4th Semester</option>
+            <option value="5th Semester">5th Semester</option>
+            <option value="6th Semester">6th Semester</option>
+            <option value="7th Semester">7th Semester</option>
+            <option value="8th Semester">8th Semester</option>
+          </select>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+          <span class="badge bg-secondary p-2 w-100 rounded-pill shadow-sm" id="historyCount">Loading...</span>
+        </div>
+      </div>
+
+      <!-- History List -->
+      <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+        <table class="table table-hover align-middle">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th class="text-uppercase text-secondary small">Student</th>
+              <th class="text-uppercase text-secondary small">Semester / Subject</th>
+              <th class="text-uppercase text-secondary small">Dates</th>
+              <th class="text-uppercase text-secondary small">Reason</th>
+              <th class="text-uppercase text-secondary small text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody">
+            {% if historical_leaves %}
+              {% for h in historical_leaves %}
+              <tr class="history-row" data-status="{{ h.status }}" data-semester="{{ h.semester }}">
+                <td>
+                  <div class="fw-bold">{{ h.name }}</div>
+                  <div class="text-muted small">{{ h.roll_no }}</div>
+                </td>
+                <td>
+                  <span class="badge bg-dark rounded-pill">{{ h.semester }}</span><br>
+                  <span class="badge bg-info text-dark rounded-pill mt-1">{{ h.subject_name or 'All Subjects' }}</span>
+                </td>
+                <td>
+                  <div class="small fw-semibold">{{ h.start_date }}</div>
+                  <div class="small text-muted">to {{ h.end_date }}</div>
+                </td>
+                <td>
+                  <div class="text-truncate" style="max-width: 200px;" title="{{ h.application_purpose }}">
+                    {{ h.application_purpose }}
+                  </div>
+                  <button class="btn btn-link btn-sm p-0 text-decoration-none" onclick="openModal(`{{ h.application_purpose }}`, `{{ h.application_text }}`)">Read More</button>
+                </td>
+                <td class="text-center">
+                  {% if h.status == 'Approved' %}
+                    <span class="badge bg-success rounded-pill px-3 py-2"><i class="fas fa-check-circle me-1"></i> Approved</span>
+                  {% elif h.status == 'Rejected' %}
+                    <span class="badge bg-danger rounded-pill px-3 py-2"><i class="fas fa-times-circle me-1"></i> Rejected</span>
+                  {% else %}
+                    <span class="badge bg-secondary rounded-pill px-3 py-2">{{ h.status }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr id="noHistoryRow">
+                <td colspan="5" class="text-center text-muted py-5 fst-italic">No leave history found.</td>
+              </tr>
+            {% endif %}
+            <tr id="noMatchesRow" style="display: none;">
+              <td colspan="5" class="text-center text-muted py-5 fst-italic">No records match the selected filters.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+</div>
+
 <!-- Modal -->
 <div class="modal fade" id="applicationModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content rounded-4 border-0 shadow">
       <div class="modal-header border-bottom-0 pb-0">
         <h5 class="modal-title fw-bold text-primary">📝 Application Details</h5>
@@ -70,7 +181,7 @@
       <div class="modal-body">
         <p class="text-muted small mb-1">Subject:</p>
         <h6 id="modalPurpose" class="fw-bold mb-3"></h6>
-        <div id="modalText" class="p-3 bg-light rounded-3 border-start border-4 border-primary"></div>
+        <div id="modalText" class="p-3 bg-light rounded-3 border-start border-4 border-primary" style="white-space: pre-wrap; font-family: inherit;"></div>
       </div>
       <div class="modal-footer border-top-0 pt-0">
         <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
@@ -87,6 +198,50 @@
       document.getElementById('modalText').textContent = text;
       var myModal = new bootstrap.Modal(document.getElementById('applicationModal'));
       myModal.show();
+  }
+
+  // Filtering Logic for History
+  const statusFilter = document.getElementById('statusFilter');
+  const semesterFilter = document.getElementById('semesterFilter');
+  const rows = document.querySelectorAll('.history-row');
+  const countBadge = document.getElementById('historyCount');
+  const noMatchesRow = document.getElementById('noMatchesRow');
+  const noHistoryRow = document.getElementById('noHistoryRow');
+
+  function filterHistory() {
+    if (noHistoryRow) return; // DB is empty, nothing to filter
+
+    const st = statusFilter.value;
+    const sem = semesterFilter.value;
+    let visibleCount = 0;
+
+    rows.forEach(row => {
+      const matchStatus = (st === 'all' || row.dataset.status === st);
+      const matchSemester = (sem === 'all' || row.dataset.semester === sem);
+
+      if (matchStatus && matchSemester) {
+        row.style.display = '';
+        visibleCount++;
+      } else {
+        row.style.display = 'none';
+      }
+    });
+
+    countBadge.textContent = visibleCount + ' record(s) found';
+    noMatchesRow.style.display = (visibleCount === 0) ? '' : 'none';
+  }
+
+  // Initialize
+  if (statusFilter && semesterFilter) {
+    statusFilter.addEventListener('change', filterHistory);
+    semesterFilter.addEventListener('change', filterHistory);
+    
+    // Initial count
+    if (noHistoryRow) {
+      countBadge.textContent = "0 records";
+    } else {
+      countBadge.textContent = rows.length + " record(s) total";
+    }
   }
 </script>
 {% endblock %}
