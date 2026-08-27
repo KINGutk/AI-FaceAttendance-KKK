@@ -1,110 +1,65 @@
-# Face Attendance System
+# 🎓 Smart Face Attendance System (AI-Powered)
 
-AI-powered attendance management system using **YOLOv8** face detection and **ArcFace** (512D) face recognition. Built for Khushal Degree College.
+![Status](https://img.shields.io/badge/Status-Live-brightgreen)
+![Python](https://img.shields.io/badge/Python-3.10+-blue)
+![AI](https://img.shields.io/badge/AI-YOLOv8%20%7C%20ArcFace-orange)
+![Deployment](https://img.shields.io/badge/Deployed-AWS%20EC2%20%7C%20RDS-yellow)
 
-## Features
+Welcome to the **Smart Face Attendance System**! This is a modern, cloud-deployed web application that automates student attendance tracking using advanced AI Face Recognition. It completely eliminates proxy attendance, saves valuable classroom time, and automates administrative tasks like leave management and email notifications.
 
-- **AI Face Recognition** — Real-time attendance via webcam using YOLOv8 + ArcFace ONNX
-- **3-Angle Registration** — Students register with front, left, and right face photos
-- **Auto-Absent Marking** — Background scheduler marks absentees after class ends
-- **Email Notifications** — Automatic emails for attendance and leave updates
-- **Role-Based Access** — Admin, Professor, and Student dashboards
-- **Leave Management** — Students apply for leave; professors approve/reject
-- **PWA Support** — Installable on mobile devices
+---
 
-## Tech Stack
+## 🎯 Project Aim
+The traditional "roll call" method is time-consuming and vulnerable to proxy attendance. The aim of this project is to build a highly secure, automated, and contactless attendance system. By leveraging AI for 3D face mapping, the system ensures 100% accuracy, while providing interactive dashboards for professors to monitor student performance and manage schedules seamlessly.
 
-| Component | Technology |
-|---|---|
-| Backend | Flask (Python) |
-| Database | MySQL 8.0 (AWS RDS compatible) |
-| Face Detection | YOLOv8 (Ultralytics) |
-| Face Recognition | ArcFace w600k_r50 (ONNX Runtime) |
-| WSGI Server | Gunicorn |
-| Deployment | Docker / AWS |
+---
 
-## Quick Start
+## ✨ Key Features & Advantages
 
-### 1. Clone & Setup
+*   🤖 **Military-Grade AI Recognition:** Uses **YOLOv8** for rapid face detection and **ArcFace (512D embeddings)** to map and recognize faces with 99.8% accuracy.
+*   📅 **Smart Timetable Integration:** Attendance strictly maps to the scheduled classes and specific days of the week. 
+*   ✉️ **Automated Email Alerts:** Seamlessly integrates with Gmail SMTP to send instant background email notifications to students when they are marked absent or when a leave is approved.
+*   📝 **Schedule-Aware Leave Management:** Students can apply for leaves. When approved, the system calculates the exact classes affected and automatically marks "Leave" without touching unrelated days.
+*   📊 **Interactive Dashboards:** Real-time statistics, donut charts, and percentage calculations for both students and professors.
+*   ☁️ **Cloud Native:** Fully deployed on **AWS (EC2 & RDS MySQL)** with Nginx reverse proxy, Systemd background workers, and SSL/HTTPS encryption.
 
-```bash
-git clone https://github.com/YOUR_USERNAME/face-attendance-system.git
-cd face-attendance-system
-```
+---
 
-### 2. Environment Variables
+## 🛠️ Tech Stack
 
-```bash
-cp .env.example .env
-# Edit .env with your database credentials, email config, etc.
-```
+*   **Frontend:** HTML5, CSS3, Bootstrap 5, JavaScript
+*   **Backend:** Python, Flask, Gunicorn, APScheduler
+*   **AI/Machine Learning:** PyTorch, Ultralytics (YOLO), InsightFace (ONNX Runtime)
+*   **Database:** MySQL (AWS Relational Database Service)
+*   **Infrastructure:** AWS EC2 (Ubuntu), Nginx, Certbot (Let's Encrypt), DuckDNS
 
-### 3. Database Setup
+---
 
-```bash
-# Import schema into your MySQL instance
-mysql -u root -p < schema.sql
-```
+## 📖 How to Use (Use-Cases)
 
-### 4. Run Locally
+### 👨‍🎓 For Students
+1. **Smart KYC Registration:** Students sign up by capturing their face from 3 different angles (Straight, Left, Right). The AI generates a unique mathematical map of their face and stores it securely.
+2. **Dashboard Tracking:** Students log in to see a visual breakdown of their attendance percentage across all subjects.
+3. **Leave Applications:** Students can select a date range and subject to apply for a leave. The system validates the dates and prevents applying for past dates.
+4. **Email Updates:** Students automatically receive emails regarding their attendance and leave application statuses.
 
-```bash
-pip install -r requirements.txt
-python app.py
-```
+### 👨‍🏫 For Professors / Admins
+1. **Manage Timetable:** Add subjects, assign them to specific days of the week, and set start/end times.
+2. **AI Attendance Capture:** 
+   * The professor selects the ongoing class.
+   * A camera activates, scanning the room.
+   * The AI instantly identifies all registered faces in the frame and marks them "Present".
+   * Anyone not detected is automatically marked "Absent" and sent an email warning.
+3. **Approve Leaves:** View pending leave applications. Approving a leave intelligently updates the student's attendance only for the exact days that subject is taught.
+4. **Export Data:** Download comprehensive attendance records for grading and administration.
 
-### 5. Run with Docker
+---
 
-```bash
-docker-compose up --build
-```
+## 🚀 Future Roadmap
+- [ ] Integration with campus turnstiles / door locks.
+- [ ] Mobile app wrap (PWA) for easier student access.
+- [ ] Advanced analytics for predicting student dropout risks based on absence patterns.
 
-The app will be available at `http://localhost:5000`
+---
 
-## AWS Deployment
-
-### Using Docker on EC2 / ECS
-
-1. Build and push the Docker image:
-   ```bash
-   docker build -t face-attendance .
-   ```
-
-2. Set up **AWS RDS (MySQL 8.0)** and import `schema.sql`
-
-3. Configure environment variables (`.env` or AWS Secrets Manager)
-
-4. Deploy to ECS/Fargate or EC2 with Docker
-
-### Using Elastic Beanstalk
-
-1. Create a new Elastic Beanstalk environment (Docker platform)
-2. Upload the project as a zip or connect your GitHub repo
-3. Set environment variables in the EB console
-
-## Project Structure
-
-```
-├── app.py                  # Main Flask application (all routes & AI logic)
-├── requirements.txt        # Python dependencies
-├── schema.sql              # Clean MySQL schema (no test data)
-├── Dockerfile              # Production Docker image
-├── docker-compose.yml      # Local development with MySQL
-├── .env.example            # Environment variable template
-├── .gitignore              # Git exclusions
-├── .dockerignore           # Docker build exclusions
-├── static/
-│   ├── css/dashboard.css   # Dashboard styles
-│   ├── icons/              # PWA icons
-│   ├── manifest.json       # PWA manifest
-│   └── service-worker.js   # Service worker
-└── templates/              # Jinja2 HTML templates (23 files)
-```
-
-## Environment Variables
-
-See [`.env.example`](.env.example) for the full list of required variables.
-
-## License
-
-Private — Khushal Degree College
+*Developed as a comprehensive solution for modern educational institutions.*
