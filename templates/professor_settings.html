@@ -59,40 +59,6 @@
             </div>
         </div>
         
-        <!-- Custom Email Messages -->
-        <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden">
-            <div class="card-header bg-white border-bottom border-light py-3">
-                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-comment-dots text-success me-2"></i> Custom Email Messages</h5>
-            </div>
-            <div class="card-body p-4">
-                <form action="{{ url_for('professor_settings') }}" method="POST">
-                    <input type="hidden" name="action" value="update_email_templates">
-                    
-                    <div class="mb-3">
-                        <label class="form-label text-muted fw-semibold">Leave Accepted Message</label>
-                        <textarea class="form-control" name="msg_leave_accept" rows="2" placeholder="Your leave request has been approved."></textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label text-muted fw-semibold">Leave Rejected Message</label>
-                        <textarea class="form-control" name="msg_leave_reject" rows="2" placeholder="Your leave request has been rejected. Please meet the professor."></textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label text-muted fw-semibold">Marked Absent Alert</label>
-                        <textarea class="form-control" name="msg_absent" rows="2" placeholder="You have been marked ABSENT for today's class."></textarea>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label text-muted fw-semibold">Marked Present Confirmation</label>
-                        <textarea class="form-control" name="msg_present" rows="2" placeholder="You have been marked PRESENT for today's class."></textarea>
-                    </div>
-
-                    <button type="submit" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm">Save Email Messages</button>
-                </form>
-            </div>
-        </div>
-
         <!-- Notification Preferences -->
         <div class="card shadow-sm border-0 mb-4 rounded-4 overflow-hidden">
             <div class="card-header bg-white border-bottom border-light py-3">

@@ -67,6 +67,14 @@
                 </div>
 
                 <div class="ms-auto d-flex align-items-center">
+                    
+                    <!-- Language Translator -->
+                    <div class="me-3 d-flex align-items-center bg-light px-2 py-1 rounded shadow-sm border" style="min-height: 36px; max-height: 36px; overflow: hidden;">
+                        <i class="fas fa-globe text-primary me-2"></i>
+                        <span class="fw-bold text-secondary me-2 d-none d-md-inline" style="font-size: 0.85rem;">Language</span>
+                        <div id="google_translate_element"></div>
+                    </div>
+
                     <!-- Theme Toggle -->
                     <button class="btn btn-sm btn-outline-secondary rounded-circle me-3" id="theme-toggle" aria-label="Toggle Theme">
                         <i class="fas fa-moon" id="theme-icon"></i>
@@ -173,6 +181,17 @@
             setTheme(currentTheme === 'dark' ? 'light' : 'dark');
         });
     </script>
+
+    <!-- Google Translate Script -->
+    <script type="text/javascript">
+        function googleTranslateElementInit() {
+            new google.translate.TranslateElement({
+                pageLanguage: 'en',
+                layout: google.translate.TranslateElement.InlineLayout.SIMPLE
+            }, 'google_translate_element');
+        }
+    </script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
 
     {% block extra_js %}{% endblock %}
 </body>
