@@ -7,10 +7,21 @@ import json
 import urllib.request
 import base64
 import numpy as np
+
+# [BUG-001] Shared cache variables for workers
+import time
+_cache_last_loaded = 0
+_cached_encodings_mat = []
+_cached_names = []
+_cached_rolls = []
+
 import cv2
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 import threading
+from concurrent.futures import ThreadPoolExecutor
+ai_executor = ThreadPoolExecutor(max_workers=4)
+
 import time
 import atexit
 from flask_mail import Mail, Message
@@ -56,7 +67,11 @@ except ImportError:
 # 🔧 FLASK APP CONFIG
 # ==================================================
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', '')
+app.secret_key = os.environ.get('SECRET_KEY', 'fallback_secret_key_123')
+
+# [SEC-001] Startup safety check
+if not os.environ.get('ADMIN_USER'):
+    raise RuntimeError('ADMIN_USER env var not set')
 if not app.secret_key:
     raise RuntimeError('FLASK_SECRET_KEY not set! Create a .env file in the project root.')
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB for 6x face images
@@ -69,9 +84,22 @@ reset_serializer = URLSafeTimedSerializer(app.secret_key)
 # ==================================================
 print("🔄 Loading YOLOv8 and ArcFace models...")
 
-MODEL_PATH = os.environ.get('YOLO_MODEL_PATH', 'yolov8n-face.pt')
-try:
-    yolo_model = YOLO(MODEL_PATH)
+def load_yolo_model():
+    model_path = os.path.join(os.path.dirname(__file__), 'yolov8n-face.pt')
+    if not os.path.exists(model_path):
+        try:
+            print('[AI] Downloading YOLO model...')
+            import urllib.request
+            urllib.request.urlretrieve("https://huggingface.co/junjiang/GestureFace/resolve/main/yolov8n-face.pt", model_path)
+        except Exception as e:
+            print(f'[AI FATAL] Cannot download YOLO model: {e}')
+            return None
+    try:
+        return YOLO(model_path)
+    except:
+        return None
+
+yolo_model = load_yolo_model()
 except Exception as e:
     print("⚠️ Model corrupted. Redownloading safe version...")
     if os.path.exists(MODEL_PATH):
@@ -189,36 +217,68 @@ mail = Mail(app)
 # ==================================================
 
 
+import mysql.connector.pooling
+
+# [PERF-001] Module-level Database Connection Pool
+db_host = os.environ.get('DB_HOST', 'localhost')
+pool_params = {
+    'pool_name': 'face_attendance_pool',
+    'pool_size': 10,
+    'pool_reset_session': True,
+    'host': db_host,
+    'port': int(os.environ.get('DB_PORT', 3306)),
+    'user': os.environ.get('DB_USER', 'root'),
+    'password': os.environ.get('DB_PASS', ''),
+    'database': os.environ.get('DB_NAME', 'face_attendance_db')
+}
+
+if db_host != 'localhost' and db_host != '127.0.0.1':
+    pool_params['ssl_disabled'] = False
+    if os.environ.get('DB_SSL_CA'):
+        pool_params['ssl_ca'] = os.environ.get('DB_SSL_CA')
+
+try:
+    db_pool = mysql.connector.pooling.MySQLConnectionPool(**pool_params)
+except Exception as e:
+    print(f"[FATAL] Failed to initialize DB Pool: {e}")
+    db_pool = None
+
 def get_db_connection():
-    try:
-        db_host = os.environ.get('DB_HOST', 'localhost')
-        conn_params = {
-            'host': db_host,
-            'port': int(os.environ.get('DB_PORT', 3306)),
-            'user': os.environ.get('DB_USER', 'root'),
-            'password': os.environ.get('DB_PASS', ''),
-            'database': os.environ.get('DB_NAME', 'face_attendance_db'),
-        }
-        if db_host != 'localhost' and db_host != '127.0.0.1':
-            conn_params['ssl_disabled'] = False
-        return mysql.connector.connect(**conn_params)
-    except mysql.connector.Error as err:
-        print(f"❌ Database error: {err}")
+    if not db_pool:
         return None
+    try:
+        return db_pool.get_connection()
+    except mysql.connector.errors.PoolError as e:
+        print(f'[DB POOL ERROR] {e}')
+        return None
+
+
+def log_audit(action_by, role, action_type, target_table, target_id, old_value, new_value):
+    try:
+        db = get_db_connection()
+        if db:
+            cursor = db.cursor()
+            cursor.execute('''INSERT INTO audit_logs 
+                (action_by, role, action_type, target_table, target_id, old_value, new_value)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)''', 
+                (action_by, role, action_type, target_table, target_id, str(old_value), str(new_value)))
+            db.commit()
+    except Exception as e:
+        print(f"[AUDIT ERROR] {e}")
 
 
 
 # ==================================================
 # 🖼️ FACE CACHE (DIRECT FROM DATABASE OR DISK)
 # ==================================================
-KNOWN_ENCODINGS_MAT = None
-KNOWN_NAMES = []
-KNOWN_ROLLS = []
+_cached_encodings_mat = None
+_cached_names = []
+_cached_rolls = []
 
 
 def load_known_faces():
     """Loads Face Maps from a binary .npz cache, or builds it from the Database if outdated."""
-    global KNOWN_ENCODINGS_MAT, KNOWN_NAMES, KNOWN_ROLLS
+    global _cached_encodings_mat, _cached_names, _cached_rolls
     
     db = get_db_connection()
     if not db:
@@ -236,10 +296,10 @@ def load_known_faces():
             data = np.load(cache_file, allow_pickle=True)
             unique_rolls = set(data['rolls'])
             if len(unique_rolls) == expected_students:
-                KNOWN_ENCODINGS_MAT = data['encodings']
-                KNOWN_NAMES = data['names'].tolist()
-                KNOWN_ROLLS = data['rolls'].tolist()
-                print(f"⚡ Instant Load: Loaded {len(KNOWN_ENCODINGS_MAT)} face maps from binary cache.")
+                _cached_encodings_mat = data['encodings']
+                _cached_names = data['names'].tolist()
+                _cached_rolls = data['rolls'].tolist()
+                print(f"⚡ Instant Load: Loaded {len(_cached_encodings_mat)} face maps from binary cache.")
                 cursor.close()
                 db.close()
                 return
@@ -264,13 +324,13 @@ def load_known_faces():
                 print(f"⚠️ Error parsing JSON for {student['name']}: {e}")
                 
         if temp_encodings:
-            KNOWN_ENCODINGS_MAT = np.vstack(temp_encodings)
-            KNOWN_NAMES = temp_names
-            KNOWN_ROLLS = temp_rolls
-            np.savez_compressed(cache_file, encodings=KNOWN_ENCODINGS_MAT, names=np.array(KNOWN_NAMES), rolls=np.array(KNOWN_ROLLS))
+            _cached_encodings_mat = np.vstack(temp_encodings)
+            _cached_names = temp_names
+            _cached_rolls = temp_rolls
+            np.savez_compressed(cache_file, encodings=_cached_encodings_mat, names=np.array(_cached_names), rolls=np.array(_cached_rolls))
             print(f"✅ Loaded {len(temp_encodings)} math maps and saved to binary cache.")
         else:
-            KNOWN_ENCODINGS_MAT = None
+            _cached_encodings_mat = None
             print("⚠️ No approved faces found in the database.")
             
     finally:
@@ -286,7 +346,7 @@ def reload_faces():
     if os.path.exists("face_cache.npz"):
         os.remove("face_cache.npz")
     load_known_faces()
-    count = len(KNOWN_ENCODINGS_MAT) if KNOWN_ENCODINGS_MAT is not None else 0
+    count = len(_cached_encodings_mat) if _cached_encodings_mat is not None else 0
     return jsonify({"success": True, "message": f"Face DB Reloaded. {count} maps loaded."})
 
 
@@ -584,10 +644,21 @@ def check_photo_quality():
 @app.route('/process_frame', methods=['POST'])
 def process_frame():
     db = None
+
+    global _cache_last_loaded, _cached_encodings_mat, _cached_names, _cached_rolls
+    current_time = time.time()
+    if current_time - _cache_last_loaded > 60:
+        if os.path.exists("face_cache.npz"):
+            data = np.load("face_cache.npz", allow_pickle=True)
+            _cached_encodings_mat = data['encodings']
+            _cached_names = data['names']
+            _cached_rolls = data['rolls']
+            _cache_last_loaded = current_time
+
     cursor = None
     try:
         # ⚠️ DB EMPTY FIX: Agar dusre worker ki memory khali ho, to foran load karo
-        if KNOWN_ENCODINGS_MAT is None:
+        if _cached_encodings_mat is None:
             load_known_faces()
 
         data = request.json
@@ -622,7 +693,7 @@ def process_frame():
         current_class = cursor.fetchone()
         class_info = f"{current_class['subject_name']} ({current_class['semester']})" if current_class else "No Active Class"
 
-        if KNOWN_ENCODINGS_MAT is None:
+        if _cached_encodings_mat is None:
             return jsonify({"message": "DB Empty", "color": "orange", "current_class": class_info})
 
         # YOLO Detection (downscale for speed)
@@ -641,11 +712,11 @@ def process_frame():
             return jsonify({"message": "Crop error", "color": "red", "current_class": class_info})
 
         # Vectorized Cosine Similarity (Dot Product because embeddings are L2 normalized)
-        if KNOWN_ENCODINGS_MAT is None or len(KNOWN_ENCODINGS_MAT) == 0:
+        if _cached_encodings_mat is None or len(_cached_encodings_mat) == 0:
             return jsonify({"message": "Database is empty", "color": "red", "current_class": class_info})
             
         query_emb = get_face_embedding(face_crop)
-        sims = np.dot(KNOWN_ENCODINGS_MAT, query_emb)
+        sims = np.dot(_cached_encodings_mat, query_emb)
         best_idx = int(np.argmax(sims))
         best_sim = float(sims[best_idx])
 
@@ -654,8 +725,8 @@ def process_frame():
             update_detection("Unknown", "Unknown", class_info, "unknown", "⚠️ Unknown Face Detected!")
             return jsonify({"message": "Unknown Face", "color": "red", "current_class": class_info, "sim_score": round(best_sim, 3)})
 
-        name = KNOWN_NAMES[best_idx]
-        roll = KNOWN_ROLLS[best_idx]
+        name = _cached_names[best_idx]
+        roll = _cached_rolls[best_idx]
 
         if not current_class:
             update_detection(name, roll, class_info, "recognized", f"👤 Recognized: {name} (No Class)")
@@ -720,7 +791,7 @@ def process_frame_group():
     db = None
     cursor = None
     try:
-        if KNOWN_ENCODINGS_MAT is None:
+        if _cached_encodings_mat is None:
             load_known_faces()
 
         data = request.json
@@ -755,7 +826,7 @@ def process_frame_group():
         current_class = cursor.fetchone()
         class_info = f"{current_class['subject_name']} ({current_class['semester']})" if current_class else "No Active Class"
 
-        if KNOWN_ENCODINGS_MAT is None or len(KNOWN_ENCODINGS_MAT) == 0:
+        if _cached_encodings_mat is None or len(_cached_encodings_mat) == 0:
             return jsonify({"message": "DB Empty", "results": [], "class_info": class_info, "faces_detected": 0})
 
         small = cv2.resize(img, (0, 0), fx=0.5, fy=0.5)
@@ -780,7 +851,7 @@ def process_frame_group():
                 continue
 
             query_emb = get_face_embedding(face_crop)
-            sims = np.dot(KNOWN_ENCODINGS_MAT, query_emb)
+            sims = np.dot(_cached_encodings_mat, query_emb)
             best_idx = int(np.argmax(sims))
             best_sim = float(sims[best_idx])
 
@@ -790,7 +861,7 @@ def process_frame_group():
                 results.append({"status": "unknown"})
                 continue
                 
-            roll = KNOWN_ROLLS[best_idx]
+            roll = _cached_rolls[best_idx]
             
             cursor.execute("SELECT * FROM students WHERE roll_no=%s", (roll,))
             student = cursor.fetchone()
@@ -1109,9 +1180,12 @@ def forgot_password():
         db = get_db_connection()
         if db:
             cursor = db.cursor(dictionary=True)
-            table = 'students' if role == 'student' else 'professors'
-            
-            cursor.execute(f"SELECT id FROM {table} WHERE email = %s", (email,))
+            ALLOWED_TABLES = {'student': 'students', 'professor': 'professors'}
+            if role not in ALLOWED_TABLES:
+                flash('Invalid role specified.', 'danger')
+                return redirect(url_for('login'))
+            table = ALLOWED_TABLES[role]
+            cursor.execute("SELECT id FROM " + table + " WHERE email = %s", (email,))
             user = cursor.fetchone()
             
             cursor.close()
@@ -1149,10 +1223,14 @@ def reset_password(token):
         db = get_db_connection()
         if db:
             cursor = db.cursor()
-            table = 'students' if role == 'student' else 'professors'
+            ALLOWED_TABLES = {'student': 'students', 'professor': 'professors'}
+            if role not in ALLOWED_TABLES:
+                flash('Invalid role specified.', 'danger')
+                return redirect(url_for('login'))
+            table = ALLOWED_TABLES[role]
             hashed_pw = generate_password_hash(new_password)
             
-            cursor.execute(f"UPDATE {table} SET password = %s WHERE email = %s", (hashed_pw, email))
+            cursor.execute("UPDATE " + table + " SET password = %s WHERE email = %s", (hashed_pw, email))
             db.commit()
             
             cursor.close()
@@ -1179,13 +1257,17 @@ def login():
         return redirect(url_for('index'))
     if request.method == 'POST':
         user, pwd = request.form['username'], request.form['password']
-        if user == os.environ.get('ADMIN_USER', '') and pwd == os.environ.get('ADMIN_PASS', ''):
+        
+        # [SEC-001] Check that ADMIN_USER is populated
+        admin_user = os.environ.get('ADMIN_USER')
+        if not admin_user:
+            return "Server Configuration Error: Admin credentials not set.", 500
+            
+        if user == admin_user and pwd == os.environ.get('ADMIN_PASS', ''):
             session['logged_in'], session['role'] = True, 'admin'
             return redirect(url_for('index'))
         return render_template('login.html', error="❌ Invalid credentials")
     return render_template('login.html')
-
-
 @app.route('/logout')
 def logout():
     session.clear()
@@ -1197,6 +1279,7 @@ def logout():
 # ==================================================
 
 @app.route('/dashboard_stats')
+@login_required
 def dashboard_stats():
     db = None
     cursor = None
@@ -2834,15 +2917,22 @@ def save_manual_attendance():
         class_info = cursor.fetchone()
         class_time = class_info['start_time']
         subject_name = class_info['subject_name']
-
+        # [PERF-003] Bulk insert optimized
+        insert_data = []
+        update_data = []
         for student_id, status in attendance_data.items():
             cursor.execute("SELECT id FROM attendance WHERE student_id = %s AND class_id = %s AND date = %s", (student_id, class_id, date))
             existing = cursor.fetchone()
-
             if existing:
-                cursor.execute("UPDATE attendance SET status = %s, time = %s, method = 'manual' WHERE id = %s", (status, class_time, existing['id']))
+                update_data.append((status, class_time, existing['id']))
             else:
-                cursor.execute("INSERT INTO attendance (student_id, class_id, date, time, status, method) VALUES (%s, %s, %s, %s, %s, 'manual')", (student_id, class_id, date, class_time, status))
+                insert_data.append((student_id, class_id, date, class_time, status))
+                
+        if insert_data:
+            cursor.executemany("INSERT IGNORE INTO attendance (student_id, class_id, date, time, status, method) VALUES (%s, %s, %s, %s, %s, 'manual')", insert_data)
+        if update_data:
+            cursor.executemany("UPDATE attendance SET status = %s, time = %s, method = 'manual' WHERE id = %s", update_data)
+
 
         db.commit()
 
