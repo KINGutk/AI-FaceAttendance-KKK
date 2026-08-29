@@ -421,15 +421,11 @@ async function sendFrameToServer() {
       faceOval.className = 'face-oval unknown';
       setStatus('🔍', msg, 'Scanning...', 'orange');
     }
-  } .catch(err => {
-      // [FE-002] Handle HTTP vs HTTPS errors silently
-      const isHTTP = location.protocol === 'http:';
-      const msg = isHTTP
-        ? '❌ HTTPS required for camera access. Contact your administrator.'
-        : '❌ Camera blocked. Please allow camera access in browser settings.';
-      document.getElementById('statusText').innerText = msg;
-      console.error(err);
-    });
+  } catch (err) {
+    console.error(err);
+    setStatus('⚠️', 'Connection issue', 'Retrying...', '');
+    resetChips();
+  }
 
   setTimeout(() => {
     isSending = false;
@@ -526,15 +522,10 @@ async function sendGroupFrame() {
       setStatus('🔍', data.message, 'Position students in front of camera', 'orange');
     }
 
-  } .catch(err => {
-      // [FE-002] Handle HTTP vs HTTPS errors silently
-      const isHTTP = location.protocol === 'http:';
-      const msg = isHTTP
-        ? '❌ HTTPS required for camera access. Contact your administrator.'
-        : '❌ Camera blocked. Please allow camera access in browser settings.';
-      document.getElementById('statusText').innerText = msg;
-      console.error(err);
-    });
+  } catch (err) {
+    console.error(err);
+    setStatus('⚠️', 'Connection issue', 'Retrying...', '');
+  }
 
   isSending = false;
 }
@@ -610,8 +601,14 @@ rotateLivenessChallenge();
 camera.start().then(() => {
   setStatus('🔍', 'Camera Started', 'Warming up AI engine...', 'orange');
 }).catch(err => {
-  setStatus('❌', 'Camera blocked!', 'Allow camera access in your browser settings', 'red');
-  faceOval.className = 'face-oval unknown';
-});
+    // [FE-002] Handle HTTP vs HTTPS errors silently
+    const isHTTP = location.protocol === 'http:';
+    const msg = isHTTP
+      ? 'HTTPS required for camera access. Contact your administrator.'
+      : 'Camera blocked. Please allow camera access in browser settings.';
+    setStatus('❌', isHTTP ? 'Insecure Connection' : 'Camera blocked!', msg, 'red');
+    faceOval.className = 'face-oval unknown';
+    console.error(err);
+  });
 </script>
 {% endblock %}
