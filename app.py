@@ -100,12 +100,6 @@ def load_yolo_model():
         return None
 
 yolo_model = load_yolo_model()
-except Exception as e:
-    print("⚠️ Model corrupted. Redownloading safe version...")
-    if os.path.exists(MODEL_PATH):
-        os.remove(MODEL_PATH)
-    urllib.request.urlretrieve("https://huggingface.co/junjiang/GestureFace/resolve/main/yolov8n-face.pt", MODEL_PATH)
-    yolo_model = YOLO(MODEL_PATH)
 
 # ArcFace (InsightFace w600k_r50) for 512D Face Embeddings via ONNX Runtime
 ARCFACE_MODEL_PATH = os.path.expanduser("~/.insightface/models/buffalo_l/w600k_r50.onnx")
